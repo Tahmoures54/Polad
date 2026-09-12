@@ -32,6 +32,9 @@ sealed class Failure {
     if (_retryableCodes.contains(code) || _isNetwork(error)) {
       return NetworkFailure(message: 'ارتباط با سرور برقرار نشد. دوباره تلاش کنید.', code: code, cause: error);
     }
+    if (text.contains('DioException') || text.contains('بانکیما')) {
+      return ServerFailure(message: 'خطای بانکیما. دوباره تلاش کنید.', code: code ?? 'bankima', cause: error);
+    }
     return ServerFailure(message: _fa(code, text), code: code, cause: error);
   }
 

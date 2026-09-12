@@ -4,11 +4,14 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:persian_datetime_picker/persian_datetime_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/di/locator.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/widgets/app_widgets.dart';
+import '../../../data/payments/bankima_service.dart';
 import '../../../domain/enums.dart';
 import '../../blocs/app_blocs.dart';
 import '../../blocs/member/payment_cubit.dart';
@@ -150,6 +153,43 @@ class _PaymentViewState extends State<_PaymentView> {
                 },
                 icon: const Icon(Icons.attach_file),
                 label: Text(state.receiptPath == null ? 'پیوست فیش (اختیاری)' : 'فیش انتخاب شد'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: state.busy
+                    ? null
+                    : () async {
+                        final amount = Validators.parseAmount(_amount.text);
+                        final memberId = context.read<HomeCubit>().state.me?.userId;
+                        if (amount == null || memberId == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('ابتدا مبلغ را وارد کنید')),
+                          );
+                          return;
+                        }
+                        final res = await sl<BankimaService>().createPaymentLink(memberId, amount);
+                        await res.fold(
+                          (f) async {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(f.message)));
+                            }
+                          },
+                          (link) async {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'لینک بانکیما باز شد. پس از پرداخت، کد پیگیری را ثبت کنید. تأیید فقط با مدیر است.',
+                                  ),
+                                ),
+                              );
+                            }
+                            await launchUrl(Uri.parse(link.url), mode: LaunchMode.externalApplication);
+                          },
+                        );
+                      },
+                icon: const Icon(Icons.link),
+                label: const Text('لینک پرداخت بانکیما'),
               ),
               const SizedBox(height: 24),
               AuthPrimaryButton(

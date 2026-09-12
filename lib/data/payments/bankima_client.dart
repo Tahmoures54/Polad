@@ -1,69 +1,70 @@
 import 'package:dio/dio.dart';
 
 import '../../core/config/app_config.dart';
-import '../../core/utils/formatters.dart';
+import '../../core/network/network_retry.dart';
 import '../../core/utils/result.dart';
+import '../../domain/enums.dart';
+import 'bankima_models.dart';
+import 'bankima_service.dart';
 
-/// Client for Bank Mellat Open Banking («بانکیما»).
+export 'bankima_models.dart';
+export 'bankima_paths.dart';
+export 'bankima_service.dart';
+
+/// سازگاری با کد قدیمی. منطق جدید در [BankimaService] است.
 ///
-/// Official endpoints and credentials are issued after commercial onboarding
-/// on the Bankima partner portal. Secrets MUST stay in Cloud Functions;
-/// this Dart client is only used against a backend proxy, never with a raw
-/// client_secret inside the mobile app.
+/// Secrets MUST stay in Cloud Functions; this Dart client is only used against
+/// a backend proxy, never with a raw client_secret inside the mobile app.
 class BankimaClient {
-  BankimaClient({Dio? dio, this.proxyBaseUrl})
-      : _dio = dio ??
-            Dio(
-              BaseOptions(
-                baseUrl: proxyBaseUrl ?? AppConfig.bankimaBaseUrl,
-                connectTimeout: const Duration(seconds: 12),
-                receiveTimeout: const Duration(seconds: 20),
-              ),
-            );
+  BankimaClient({Dio? dio, this.proxyBaseUrl, NetworkRetry? retry})
+      : _http = BankimaHttpService(
+          dio: dio,
+          baseUrl: proxyBaseUrl ?? AppConfig.bankimaBaseUrl,
+          retry: retry,
+        );
 
-  final Dio _dio;
+  final BankimaHttpService _http;
   final String? proxyBaseUrl;
 
+  BankimaService get service => _http;
+
   Future<Result<IbanInquiry>> inquireIban(String iban) async {
-    try {
-      final res = await _dio.get<Map<String, dynamic>>('/v1/iban/inquiry', queryParameters: {'iban': iban});
-      final data = res.data ?? const {};
-      return Ok(IbanInquiry(
-        iban: iban,
-        ownerName: data['ownerName'] as String? ?? '',
-        bankName: data['bankName'] as String? ?? 'ملت',
-        status: data['status'] as String? ?? 'unknown',
-      ));
-    } on DioException catch (e) {
-      return Err(_mapError(e));
-    }
+    // TODO(bankima-docs): استعلام شبا پس از دریافت قرارداد فیلدها.
+    final res = await _http.verifyTransaction(iban);
+    return res.fold(
+      (f) => Err(f.message),
+      (tx) => Ok(
+        IbanInquiry(
+          iban: iban,
+          ownerName: tx.description ?? '',
+          bankName: 'ملت',
+          status: tx.status,
+        ),
+      ),
+    );
   }
 
   Future<Result<List<BankTurnoverRow>>> turnover({
     required DateTime from,
     required DateTime to,
   }) async {
-    try {
-      final res = await _dio.get<Map<String, dynamic>>('/v1/accounts/turnover', queryParameters: {
-        'from': from.toIso8601String(),
-        'to': to.toIso8601String(),
-      });
-      final rows = (res.data?['items'] as List? ?? const [])
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .map(
-            (m) => BankTurnoverRow(
-              amountToman: rialToToman(m['amountRial'] as int? ?? 0),
-              trackingCode: m['trackingCode'] as String? ?? '',
-              isCredit: m['isCredit'] as bool? ?? true,
-              occurredAt: DateTime.tryParse(m['occurredAt'] as String? ?? '') ?? DateTime.now(),
-              description: m['description'] as String? ?? '',
-            ),
-          )
-          .toList();
-      return Ok(rows);
-    } on DioException catch (e) {
-      return Err(_mapError(e));
-    }
+    final res = await _http.getAccountStatement('default', DateRange(from: from, to: to));
+    return res.fold(
+      (f) => Err(f.message),
+      (s) => Ok(
+        s.rows
+            .map(
+              (r) => BankTurnoverRow(
+                amountToman: r.amountToman,
+                trackingCode: r.trackingCode,
+                isCredit: r.isCredit,
+                occurredAt: r.occurredAt,
+                description: r.description,
+              ),
+            )
+            .toList(),
+      ),
+    );
   }
 
   Future<Result<String>> initiatePaya({
@@ -72,29 +73,14 @@ class BankimaClient {
     required String description,
     required String trackId,
   }) async {
-    try {
-      final res = await _dio.post<Map<String, dynamic>>('/v1/payments/paya', data: {
-        'destinationIban': destinationIban,
-        'amountRial': tomanToRial(amountToman),
-        'description': description,
-        'trackId': trackId,
-      });
-      final id = res.data?['paymentId'] as String?;
-      if (id == null) return const Err('بانکیما شناسه پرداخت برنگرداند');
-      return Ok(id);
-    } on DioException catch (e) {
-      return Err(_mapError(e));
-    }
-  }
-
-  String _mapError(DioException e) {
-    if (e.type == DioExceptionType.connectionTimeout || e.type == DioExceptionType.receiveTimeout) {
-      return 'ارتباط با بانکیما زمان‌بر شد. بعداً دوباره تلاش کنید.';
-    }
-    if (e.type == DioExceptionType.connectionError) {
-      return 'اینترنت در دسترس نیست.';
-    }
-    return 'خطای بانکیما: ${e.response?.statusCode ?? ''}';
+    final res = await _http.transfer(
+      rail: BankTransferRail.paya,
+      destinationIban: destinationIban,
+      amountToman: amountToman,
+      description: description,
+      trackId: trackId,
+    );
+    return res.fold((f) => Err(f.message), (t) => Ok(t.paymentId));
   }
 }
 

@@ -1,6 +1,7 @@
 import '../../core/utils/result.dart';
 import '../entities/finance.dart';
 import '../entities/people.dart';
+import '../entities/reports.dart';
 import '../enums.dart';
 
 class CreateFundInput {
@@ -34,6 +35,10 @@ class SubmitPaymentInput {
     this.receiptPath,
     this.relatedInstallmentId,
     this.relatedLoanId,
+    this.source = PaymentSource.manual,
+    this.memberId,
+    this.memberName,
+    this.note,
   });
 
   final int amount;
@@ -43,13 +48,23 @@ class SubmitPaymentInput {
   final String? receiptPath;
   final String? relatedInstallmentId;
   final String? relatedLoanId;
+
+  /// منبع ثبت. پیشنهاد پیامک همیشه [PaymentSource.smsMatch] است و تأیید نمی‌شود.
+  final PaymentSource source;
+
+  /// اگر مدیر پیشنهاد پیامک برای عضو دیگری می‌سازد.
+  final String? memberId;
+  final String? memberName;
+
+  /// توضیح داخلی (مثلاً متن پیامک). هرگز به‌معنای تأیید نیست.
+  final String? note;
 }
 
 abstract class AuthRepository {
   Stream<UserProfile?> authState();
   Future<Result<void>> sendOtp(String phone);
   Future<Result<UserProfile>> verifyOtp({required String phone, required String smsCode, String? displayName});
-  Future<Result<void>> updateProfile({required String displayName});
+  Future<Result<void>> updateProfile({required String displayName, String? avatarUrl});
   Future<void> signOut();
   UserProfile? get currentUser;
 }
@@ -100,9 +115,9 @@ abstract class BillingRepository {
 }
 
 abstract class ReportRepository {
-  Future<FundReport> build(String fundId);
-  Future<Result<String>> exportExcel(String fundId);
-  Future<Result<String>> exportPdf(String fundId);
+  Future<PoladReport> build(String fundId, {ReportFilter filter = const ReportFilter()});
+  Future<Result<String>> exportExcel(String fundId, {ReportFilter filter = const ReportFilter(), bool share = true});
+  Future<Result<String>> exportPdf(String fundId, {ReportFilter filter = const ReportFilter(), bool share = true});
 }
 
 abstract class SmsInbox {

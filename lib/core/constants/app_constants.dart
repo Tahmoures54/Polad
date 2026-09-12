@@ -19,6 +19,10 @@ class AppConstants {
   static const prefsActiveFund = 'active_fund_id';
   static const prefsSessionUser = 'session_user_id';
   static const prefsIntendedRole = 'intended_role';
+  static const prefsThemeMode = 'theme_mode';
+  static const prefsNotifInstallment = 'notif_installment';
+  static const prefsNotifDraw = 'notif_draw';
+  static const prefsNotifFee = 'notif_fee';
   static const otpResendSeconds = 60;
 }
 

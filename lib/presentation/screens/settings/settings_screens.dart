@@ -7,10 +7,12 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/widgets/app_widgets.dart';
-import '../../../data/sms/bank_sms_parser.dart';
+import '../../../data/sms/sms_parser_service.dart';
 import '../../../domain/enums.dart';
 import '../../../domain/repositories/repositories.dart';
 import '../../blocs/app_blocs.dart';
+import '../../blocs/payments/bankima_cubit.dart';
+import 'settings_hub_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -41,6 +43,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 8),
           Text('موبایل ${iranianPhonePretty(user?.phone ?? '')}', style: const TextStyle(color: AppColors.muted)),
           const SizedBox(height: 20),
+          OutlinedButton.icon(
+            onPressed: () => pickAvatar(context),
+            icon: const Icon(Icons.photo_camera_outlined),
+            label: const Text('تغییر آواتار'),
+          ),
+          const SizedBox(height: 12),
           FilledButton(
             onPressed: () async {
               await sl<AuthRepository>().updateProfile(displayName: name.text.trim());
@@ -87,6 +95,7 @@ class FundSettingsScreen extends StatefulWidget {
 
 class _FundSettingsScreenState extends State<FundSettingsScreen> {
   final share = TextEditingController();
+  final period = TextEditingController();
   final charter = TextEditingController();
 
   @override
@@ -94,6 +103,7 @@ class _FundSettingsScreenState extends State<FundSettingsScreen> {
     final fund = context.watch<HomeCubit>().state.fund;
     if (fund == null) return const Scaffold(body: LoadingView());
     share.text = share.text.isEmpty ? fund.shareAmount.toString() : share.text;
+    period.text = period.text.isEmpty ? fund.paymentPeriodDays.toString() : period.text;
     charter.text = charter.text.isEmpty ? (fund.charterText ?? '') : charter.text;
     return Scaffold(
       appBar: AppBar(title: const Text('تنظیمات صندوق')),
@@ -101,6 +111,8 @@ class _FundSettingsScreenState extends State<FundSettingsScreen> {
         padding: const EdgeInsets.all(20),
         children: [
           PersianNumberField(controller: share, label: 'مبلغ سهم (تومان)'),
+          const SizedBox(height: 12),
+          PersianNumberField(controller: period, label: 'دوره پرداخت (روز)'),
           const SizedBox(height: 12),
           TextField(controller: charter, maxLines: 5, decoration: const InputDecoration(labelText: 'اساسنامه')),
           const SizedBox(height: 8),
@@ -129,8 +141,9 @@ class _FundSettingsScreenState extends State<FundSettingsScreen> {
           FilledButton(
             onPressed: () {
               final amount = Validators.parseAmount(share.text);
-              if (amount == null) return;
-              context.read<HomeCubit>().updateFund(fund.copyWith(shareAmount: amount, charterText: charter.text.trim()));
+              final days = Validators.parseAmount(period.text);
+              if (amount == null || days == null) return;
+              context.read<HomeCubit>().updateFund(fund.copyWith(shareAmount: amount, paymentPeriodDays: days, charterText: charter.text.trim()));
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ذخیره شد')));
             },
             child: const Text('ذخیره تنظیمات'),
@@ -141,56 +154,94 @@ class _FundSettingsScreenState extends State<FundSettingsScreen> {
   }
 }
 
-class SmsMatchScreen extends StatefulWidget {
+class SmsMatchScreen extends StatelessWidget {
   const SmsMatchScreen({super.key});
-  @override
-  State<SmsMatchScreen> createState() => _SmsMatchScreenState();
-}
-
-class _SmsMatchScreenState extends State<SmsMatchScreen> {
-  String status = 'فقط روی اندروید مدیر، پیامک واریز بانک خوانده می‌شود.';
-  List<String> lines = [];
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('پیامک بانکی')),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Text(status, style: const TextStyle(color: AppColors.muted, height: 1.7)),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: () async {
-              final cubit = context.read<HomeCubit>();
-              final inbox = sl<SmsInbox>();
-              final ok = await inbox.requestPermission();
-              if (!ok) {
-                setState(() => status = 'دسترسی پیامک داده نشد. می‌توانید کد پیگیری را دستی وارد کنید.');
-                return;
-              }
-              final sms = await inbox.readRecent();
-              final pending = cubit.state.pending;
-              final parser = sl<BankSmsParser>();
-              final out = <String>[];
-              for (final s in sms) {
-                final match = parser.match(sms: s, pending: pending);
-                match.when(
-                  ok: (tx) => out.add('تطبیق ${tx.memberName} — ${toman(tx.amount)}'),
-                  err: (m) => out.add('${s.sender}: $m'),
-                );
-              }
-              setState(() {
-                lines = out;
-                status = out.isEmpty ? 'پیامک قابل‌تطبیقی پیدا نشد.' : 'نتیجه تطبیق:';
-              });
-            },
-            child: const Text('خواندن پیامک‌های اخیر'),
-          ),
-          const SizedBox(height: 12),
-          ...lines.map((e) => ListTile(title: Text(e))),
-        ],
-      ),
+    return BlocProvider(
+      create: (_) => SmsInboxCubit(),
+      child: const _SmsMatchView(),
     );
   }
+}
+
+class _SmsMatchView extends StatelessWidget {
+  const _SmsMatchView();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<SmsInboxCubit, SmsInboxState>(
+      listenWhen: (p, c) => p.error != c.error || p.report != c.report,
+      listener: (context, state) {
+        if (state.error != null) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.error!)));
+        }
+        if (state.report != null) {
+          context.read<HomeCubit>().refresh();
+        }
+      },
+      builder: (context, state) {
+        final home = context.watch<HomeCubit>().state;
+        return Scaffold(
+          appBar: AppBar(title: const Text('پیامک بانکی')),
+          body: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              const Text(
+                'پیامک واریز بانک‌های ملت، ملی، صادرات، پاسارگاد، سامان و پارسیان روی گوشی مدیر خوانده می‌شود و فقط به‌صورت «پیشنهاد» در صف انتظار می‌نشیند. تأیید هرگز خودکار نیست.',
+                style: TextStyle(color: AppColors.muted, height: 1.7),
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: state.busy
+                    ? null
+                    : () => context.read<SmsInboxCubit>().scan(
+                          isAdmin: home.isAdmin,
+                          existing: home.transactions,
+                          members: home.members,
+                        ),
+                child: Text(state.busy ? 'در حال خواندن…' : 'خواندن پیامک‌های اخیر'),
+              ),
+              const SizedBox(height: 12),
+              if (state.report != null)
+                Text(
+                  'تطبیق: ${state.report!.matchedCount}  •  پیشنهاد جدید: ${state.report!.createdCount}  •  تأیید خودکار: خیر',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              const SizedBox(height: 8),
+              ...state.items.map((item) {
+                final sms = item.sms;
+                return Card(
+                  child: ListTile(
+                    title: Text('${sms.bank.fa} — ${sms.amount == null ? '—' : toman(sms.amount!)}'),
+                    subtitle: Text(
+                      '${item.message}\nکد ${sms.trackingCode ?? '—'} • ${jalaliDate(sms.occurredAt ?? sms.receivedAt)}',
+                      style: const TextStyle(height: 1.5),
+                    ),
+                    isThreeLine: true,
+                    trailing: StatusChip(
+                      label: _kindLabel(item.kind),
+                      tone: item.kind == SmsSuggestionKind.createdSuggestion
+                          ? ChipTone.warning
+                          : item.kind == SmsSuggestionKind.matchedPending
+                              ? ChipTone.info
+                              : ChipTone.neutral,
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _kindLabel(SmsSuggestionKind kind) => switch (kind) {
+        SmsSuggestionKind.matchedPending => 'منتظر تأیید',
+        SmsSuggestionKind.createdSuggestion => 'پیشنهاد',
+        SmsSuggestionKind.duplicate => 'تکراری',
+        SmsSuggestionKind.ignored => 'نادیده',
+      };
 }

@@ -118,4 +118,42 @@ class AppTheme {
       ),
     );
   }
+
+  static ThemeData dark() {
+    return ThemeData(
+      useMaterial3: true,
+      fontFamily: 'Vazirmatn',
+      brightness: Brightness.dark,
+      scaffoldBackgroundColor: const Color(0xFF0E1220),
+      colorScheme: const ColorScheme.dark(
+        primary: AppColors.gold,
+        onPrimary: AppColors.navyDark,
+        secondary: AppColors.goldLight,
+        surface: Color(0xFF171D2E),
+        onSurface: Colors.white,
+        error: AppColors.danger,
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Color(0xFF0E1220),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        titleTextStyle: TextStyle(
+          fontFamily: 'Vazirmatn',
+          fontWeight: FontWeight.w700,
+          fontSize: 18,
+          color: Colors.white,
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: const Color(0xFF171D2E),
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0xFF2A3348)),
+        ),
+      ),
+    );
+  }
 }

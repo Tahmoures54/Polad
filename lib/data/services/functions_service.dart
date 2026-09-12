@@ -26,6 +26,14 @@ class CallableNames {
   static const startBankimaPayment = 'startBankimaPayment';
   static const verifyBankimaPayment = 'verifyBankimaPayment';
   static const setCustomClaims = 'setCustomClaims';
+
+  /// TODO(bankima-docs): نام Callableها پایدار است؛ مسیر HTTP پشت آن‌ها در Functions عوض می‌شود.
+  static const bankimaVerifyTransaction = 'bankimaVerifyTransaction';
+  static const bankimaAccountStatement = 'bankimaAccountStatement';
+  static const bankimaInstallmentInfo = 'bankimaInstallmentInfo';
+  static const bankimaCreatePaymentLink = 'bankimaCreatePaymentLink';
+  static const bankimaGetBalance = 'bankimaGetBalance';
+  static const bankimaTransfer = 'bankimaTransfer';
 }
 
 /// فراخوانی Cloud Functions از اپ با Either و retry.
@@ -66,6 +74,26 @@ abstract class FunctionsService {
     required int amountToman,
   });
   Future<AppResult<Unit>> verifyBankimaPayment(String orderId);
+
+  Future<AppResult<Map<String, dynamic>>> bankimaVerifyTransaction(String receiptCode);
+  Future<AppResult<Map<String, dynamic>>> bankimaAccountStatement({
+    required String accountId,
+    required DateTime from,
+    required DateTime to,
+  });
+  Future<AppResult<Map<String, dynamic>>> bankimaInstallmentInfo(String loanId);
+  Future<AppResult<Map<String, dynamic>>> bankimaCreatePaymentLink({
+    required String memberId,
+    required int amountToman,
+  });
+  Future<AppResult<Map<String, dynamic>>> bankimaGetBalance(String accountId);
+  Future<AppResult<Map<String, dynamic>>> bankimaTransfer({
+    required String rail,
+    required String destinationIban,
+    required int amountToman,
+    required String description,
+    String? trackId,
+  });
 
   /// تنظیم Custom Claims توسط Admin SDK (کلاینت مستقیم نمی‌تواند).
   Future<AppResult<Unit>> setCustomClaims({
@@ -186,6 +214,56 @@ class FirebaseFunctionsService implements FunctionsService {
       _okCall(CallableNames.verifyBankimaPayment, {'orderId': orderId});
 
   @override
+  Future<AppResult<Map<String, dynamic>>> bankimaVerifyTransaction(String receiptCode) =>
+      call(CallableNames.bankimaVerifyTransaction, {'receiptCode': receiptCode});
+
+  @override
+  Future<AppResult<Map<String, dynamic>>> bankimaAccountStatement({
+    required String accountId,
+    required DateTime from,
+    required DateTime to,
+  }) =>
+      call(CallableNames.bankimaAccountStatement, {
+        'accountId': accountId,
+        'from': from.toIso8601String(),
+        'to': to.toIso8601String(),
+      });
+
+  @override
+  Future<AppResult<Map<String, dynamic>>> bankimaInstallmentInfo(String loanId) =>
+      call(CallableNames.bankimaInstallmentInfo, {'loanId': loanId});
+
+  @override
+  Future<AppResult<Map<String, dynamic>>> bankimaCreatePaymentLink({
+    required String memberId,
+    required int amountToman,
+  }) =>
+      call(CallableNames.bankimaCreatePaymentLink, {
+        'memberId': memberId,
+        'amountToman': amountToman,
+      });
+
+  @override
+  Future<AppResult<Map<String, dynamic>>> bankimaGetBalance(String accountId) =>
+      call(CallableNames.bankimaGetBalance, {'accountId': accountId});
+
+  @override
+  Future<AppResult<Map<String, dynamic>>> bankimaTransfer({
+    required String rail,
+    required String destinationIban,
+    required int amountToman,
+    required String description,
+    String? trackId,
+  }) =>
+      call(CallableNames.bankimaTransfer, {
+        'rail': rail,
+        'destinationIban': destinationIban,
+        'amountToman': amountToman,
+        'description': description,
+        'trackId': trackId,
+      });
+
+  @override
   Future<AppResult<Unit>> setCustomClaims({
     required String uid,
     required UserRole role,
@@ -295,6 +373,56 @@ class DemoFunctionsService implements FunctionsService {
   @override
   Future<AppResult<Unit>> verifyBankimaPayment(String orderId) =>
       _ok(CallableNames.verifyBankimaPayment, {'orderId': orderId});
+
+  @override
+  Future<AppResult<Map<String, dynamic>>> bankimaVerifyTransaction(String receiptCode) =>
+      call(CallableNames.bankimaVerifyTransaction, {'receiptCode': receiptCode});
+
+  @override
+  Future<AppResult<Map<String, dynamic>>> bankimaAccountStatement({
+    required String accountId,
+    required DateTime from,
+    required DateTime to,
+  }) =>
+      call(CallableNames.bankimaAccountStatement, {
+        'accountId': accountId,
+        'from': from.toIso8601String(),
+        'to': to.toIso8601String(),
+      });
+
+  @override
+  Future<AppResult<Map<String, dynamic>>> bankimaInstallmentInfo(String loanId) =>
+      call(CallableNames.bankimaInstallmentInfo, {'loanId': loanId});
+
+  @override
+  Future<AppResult<Map<String, dynamic>>> bankimaCreatePaymentLink({
+    required String memberId,
+    required int amountToman,
+  }) =>
+      call(CallableNames.bankimaCreatePaymentLink, {
+        'memberId': memberId,
+        'amountToman': amountToman,
+      });
+
+  @override
+  Future<AppResult<Map<String, dynamic>>> bankimaGetBalance(String accountId) =>
+      call(CallableNames.bankimaGetBalance, {'accountId': accountId});
+
+  @override
+  Future<AppResult<Map<String, dynamic>>> bankimaTransfer({
+    required String rail,
+    required String destinationIban,
+    required int amountToman,
+    required String description,
+    String? trackId,
+  }) =>
+      call(CallableNames.bankimaTransfer, {
+        'rail': rail,
+        'destinationIban': destinationIban,
+        'amountToman': amountToman,
+        'description': description,
+        'trackId': trackId,
+      });
 
   @override
   Future<AppResult<Unit>> setCustomClaims({

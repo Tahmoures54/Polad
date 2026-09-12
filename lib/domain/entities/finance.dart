@@ -437,6 +437,8 @@ class FundReport extends Equatable {
   final double serviceFeeRate;
   final bool charityZeroFee;
 
+  int get net => totalIn - totalOut;
+
   @override
   List<Object?> get props => [balance, totalIn, totalOut, overdueCount, softwareFeeToAdmin, charityZeroFee];
 }
@@ -449,15 +451,27 @@ class BankSms extends Equatable {
     this.amount,
     this.trackingCode,
     this.isCredit,
+    this.bank = IranianBank.unknown,
+    this.occurredAt,
+    this.rawDate,
   });
 
   final String sender;
   final String body;
   final DateTime receivedAt;
+
+  /// مبلغ به تومان. اگر پیامک ریال باشد تبدیل شده است.
   final int? amount;
   final String? trackingCode;
   final bool? isCredit;
+  final IranianBank bank;
+
+  /// تاریخ استخراج‌شده از متن پیامک (شمسی یا میلادی).
+  final DateTime? occurredAt;
+  final String? rawDate;
+
+  bool get isParseable => amount != null && (trackingCode?.isNotEmpty ?? false);
 
   @override
-  List<Object?> get props => [sender, body, receivedAt, amount, trackingCode];
+  List<Object?> get props => [sender, body, receivedAt, amount, trackingCode, bank];
 }

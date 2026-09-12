@@ -10,7 +10,9 @@ import '../../domain/entities/finance.dart';
 import '../../domain/entities/people.dart';
 import '../../domain/enums.dart';
 import '../../domain/repositories/repositories.dart';
-import '../../domain/services/finance_services.dart';
+import '../../domain/entities/reports.dart';
+import '../../domain/services/report_builder.dart';
+import '../reports/report_export.dart';
 import 'firebase_repos.dart';
 
 Map<String, dynamic> _norm(String id, Map<String, dynamic> data) {
@@ -147,6 +149,10 @@ class FirebaseTransactionRepository implements TransactionRepository {
       'receiptUrl': url,
       'relatedInstallmentId': input.relatedInstallmentId,
       'relatedLoanId': input.relatedLoanId,
+      'source': input.source.name,
+      'memberId': input.memberId,
+      'memberName': input.memberName,
+      'note': input.note,
     });
     return res.when(ok: (m) => Ok(MoneyTransaction.fromMap(m)), err: Err.new);
   }
@@ -271,44 +277,42 @@ class FirebasePaymentGateway implements PaymentGateway {
 class FirebaseReportRepository implements ReportRepository {
   FirebaseReportRepository(this._db);
   final FirebaseFirestore _db;
+  final _builder = const ReportBuilder();
+  final _export = const ReportExporter();
 
   @override
-  Future<FundReport> build(String fundId) async {
-    final fund = await _db.collection(CollectionPaths.funds).doc(fundId).get();
+  Future<PoladReport> build(String fundId, {ReportFilter filter = const ReportFilter()}) async {
+    final fundSnap = await _db.collection(CollectionPaths.funds).doc(fundId).get();
+    final fund = Fund.fromMap(_norm(fundSnap.id, fundSnap.data() ?? {}));
     final txs = await _db.collection(CollectionPaths.transactions).where('fundId', isEqualTo: fundId).get();
     final inst = await _db.collection(CollectionPaths.installments).where('fundId', isEqualTo: fundId).get();
-    final approved = txs.docs
-        .map((d) => MoneyTransaction.fromMap(_norm(d.id, d.data())))
-        .where((t) => t.status == TransactionStatus.approved);
-    final overdue = inst.docs
-        .map((d) => Installment.fromMap(_norm(d.id, d.data())))
-        .where((i) => i.status == InstallmentStatus.overdue);
-    final inSum = approved
-        .where((t) => t.type != TransactionType.loanDisbursement && t.type != TransactionType.withdrawal)
-        .fold<int>(0, (a, b) => a + b.amount);
-    final outSum = approved
-        .where((t) => t.type == TransactionType.loanDisbursement || t.type == TransactionType.withdrawal)
-        .fold<int>(0, (a, b) => a + b.amount);
-    return FundReport(
-      balance: (fund.data()?['balance'] as int?) ?? 0,
-      totalIn: inSum,
-      totalOut: outSum,
-      overdueCount: overdue.length,
-      overdueAmount: overdue.fold(0, (a, b) => a + b.amount),
-      points: const [],
-      softwareFeeToAdmin: const FeeCalculator().accrue(
-        approved.map((t) => t.amount),
-        (fund.data()?['serviceFeeRate'] as num?)?.toDouble() ?? 0.005,
-        charityZeroFee: fund.data()?['isCharity'] as bool? ?? false,
-      ),
-      serviceFeeRate: (fund.data()?['serviceFeeRate'] as num?)?.toDouble() ?? 0.005,
-      charityZeroFee: fund.data()?['isCharity'] as bool? ?? false,
+    final loans = await _db.collection(CollectionPaths.loans).where('fundId', isEqualTo: fundId).get();
+    final members = await _db.collection(CollectionPaths.fundMembers(fundId)).get();
+    final invoices = await _db.collection(CollectionPaths.invoices).where('fundId', isEqualTo: fundId).get();
+    return _builder.build(
+      fund: fund,
+      transactions: txs.docs.map((d) => MoneyTransaction.fromMap(_norm(d.id, d.data()))).toList(),
+      installments: inst.docs.map((d) => Installment.fromMap(_norm(d.id, d.data()))).toList(),
+      loans: loans.docs.map((d) => Loan.fromMap(_norm(d.id, d.data()))).toList(),
+      members: members.docs.map((d) => FundMember.fromMap(_norm(d.id, d.data()))).toList(),
+      invoices: invoices.docs.map((d) => ServiceInvoice.fromMap(_norm(d.id, d.data()))).toList(),
+      filter: filter,
     );
   }
 
   @override
-  Future<Result<String>> exportExcel(String fundId) async => const Err('خروجی اکسل از طریق سرور تولید می‌شود');
+  Future<Result<String>> exportExcel(String fundId, {ReportFilter filter = const ReportFilter(), bool share = true}) async {
+    final fundSnap = await _db.collection(CollectionPaths.funds).doc(fundId).get();
+    final fund = Fund.fromMap(_norm(fundSnap.id, fundSnap.data() ?? {}));
+    final report = await build(fundId, filter: filter);
+    return _export.excel(fund, report, share: share);
+  }
 
   @override
-  Future<Result<String>> exportPdf(String fundId) async => const Err('خروجی PDF از طریق سرور تولید می‌شود');
+  Future<Result<String>> exportPdf(String fundId, {ReportFilter filter = const ReportFilter(), bool share = true}) async {
+    final fundSnap = await _db.collection(CollectionPaths.funds).doc(fundId).get();
+    final fund = Fund.fromMap(_norm(fundSnap.id, fundSnap.data() ?? {}));
+    final report = await build(fundId, filter: filter);
+    return _export.pdf(fund, report, share: share);
+  }
 }

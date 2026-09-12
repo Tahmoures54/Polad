@@ -98,11 +98,14 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<Result<void>> updateProfile({required String displayName}) async {
+  Future<Result<void>> updateProfile({required String displayName, String? avatarUrl}) async {
     final user = _auth.currentUser;
     if (user == null) return const Err('وارد نشده‌اید');
-    await _db.collection(CollectionPaths.users).doc(user.uid).update({'displayName': displayName});
-    _cached = _cached?.copyWith(displayName: displayName);
+    await _db.collection(CollectionPaths.users).doc(user.uid).update({
+      'displayName': displayName,
+      'avatarUrl': ?avatarUrl,
+    });
+    _cached = _cached?.copyWith(displayName: displayName, avatarUrl: avatarUrl ?? _cached?.avatarUrl);
     return const Ok(null);
   }
 

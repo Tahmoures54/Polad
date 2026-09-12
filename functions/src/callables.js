@@ -6,15 +6,13 @@
  * deducted from a member payment (Shaparak circular).
  */
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { initializeApp } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const axios = require("axios");
 const crypto = require("crypto");
+const bankima = require("./bankima");
 
-initializeApp();
 const db = getFirestore();
 
 const MIN_FEE = 0.005;
@@ -155,22 +153,31 @@ exports.submitPayment = onCall(async (req) => {
   await memberOf(fundId, uid);
   const amount = Number(req.data?.amount);
   if (!Number.isInteger(amount) || amount <= 0) throw new HttpsError("invalid-argument", "مبلغ نامعتبر");
+  const source = req.data.source || "manual";
+  let memberId = uid;
+  let memberName = user.displayName || "";
+  if (source === "smsMatch") {
+    await assertAdmin(fundId, uid);
+    memberId = req.data.memberId || "sms-unmatched";
+    memberName = req.data.memberName || "نامشخص — پیشنهاد پیامک";
+  }
   const ref = db.collection("transactions").doc();
   const tx = {
     id: ref.id,
     fundId,
-    memberId: uid,
-    memberName: user.displayName || "",
+    memberId,
+    memberName,
     type: req.data.type || "sharePayment",
     amount,
-    status: "pending_approval",
+    status: "pending_approval", // هرگز approved در ثبت اولیه
     occurredAt: req.data.occurredAt,
     submittedAt: new Date().toISOString(),
     trackingCode: String(req.data.trackingCode || ""),
     receiptUrl: req.data.receiptUrl || null,
     relatedInstallmentId: req.data.relatedInstallmentId || null,
     relatedLoanId: req.data.relatedLoanId || null,
-    source: "manual",
+    source,
+    reviewNote: req.data.note || null,
   };
   await ref.set(tx);
   return tx;
@@ -432,11 +439,153 @@ exports.verifyBankimaPayment = onCall(async (req) => {
   assertAuth(req);
   const order = await db.doc(`payment_orders/${req.data.orderId}`).get();
   if (!order.exists) throw new HttpsError("not-found", "سفارش نیست");
+  if (bankima.configured() && order.data().bankimaId) {
+    try {
+      await bankima.verifyTransaction(order.data().bankimaId);
+    } catch (e) {
+      throw new HttpsError("unavailable", "استعلام بانکیما ناموفق بود");
+    }
+  }
   await order.ref.update({ status: "verified" });
   if (order.data().invoiceId) {
     await db.doc(`service_invoices/${order.data().invoiceId}`).update({ status: "paid" });
   }
   return { ok: true };
+});
+
+function mapBankimaError(e) {
+  if (e.code === "unconfigured") {
+    throw new HttpsError("failed-precondition", "بانکیما هنوز پیکربندی نشده است");
+  }
+  throw new HttpsError("unavailable", "ارتباط با بانکیما برقرار نشد");
+}
+
+/** استعلام تراکنش — نتیجه بانکی، نه تأیید صندوق. */
+exports.bankimaVerifyTransaction = onCall(async (req) => {
+  const uid = assertAuth(req);
+  const user = (await db.doc(`users/${uid}`).get()).data();
+  if (!user?.activeFundId) throw new HttpsError("failed-precondition", "صندوق فعالی ندارید");
+  await memberOf(user.activeFundId, uid);
+  const receiptCode = String(req.data?.receiptCode || "");
+  if (receiptCode.length < 6) throw new HttpsError("invalid-argument", "کد پیگیری کوتاه است");
+  if (!bankima.configured()) {
+    return {
+      receiptCode,
+      amountToman: 0,
+      occurredAt: new Date().toISOString(),
+      status: "unconfigured",
+      description: "TODO(bankima-docs): credential پرتال هنوز تنظیم نشده",
+    };
+  }
+  try {
+    return await bankima.verifyTransaction(receiptCode);
+  } catch (e) {
+    mapBankimaError(e);
+  }
+});
+
+exports.bankimaAccountStatement = onCall(async (req) => {
+  const uid = assertAuth(req);
+  const user = (await db.doc(`users/${uid}`).get()).data();
+  await assertAdmin(user.activeFundId, uid);
+  if (!bankima.configured()) {
+    return { accountId: req.data.accountId, items: [] };
+  }
+  try {
+    return await bankima.getAccountStatement(req.data.accountId, req.data.from, req.data.to);
+  } catch (e) {
+    mapBankimaError(e);
+  }
+});
+
+exports.bankimaInstallmentInfo = onCall(async (req) => {
+  const uid = assertAuth(req);
+  const user = (await db.doc(`users/${uid}`).get()).data();
+  await memberOf(user.activeFundId, uid);
+  if (!bankima.configured()) {
+    return { loanId: req.data.loanId, installments: [] };
+  }
+  try {
+    return await bankima.getInstallmentInfo(req.data.loanId);
+  } catch (e) {
+    mapBankimaError(e);
+  }
+});
+
+exports.bankimaCreatePaymentLink = onCall(async (req) => {
+  const uid = assertAuth(req);
+  const user = (await db.doc(`users/${uid}`).get()).data();
+  await memberOf(user.activeFundId, uid);
+  const amount = Number(req.data.amountToman);
+  if (!Number.isInteger(amount) || amount <= 0) throw new HttpsError("invalid-argument", "مبلغ نامعتبر");
+  const memberId = req.data.memberId || uid;
+  const orderRef = db.collection("payment_orders").doc();
+  await orderRef.set({
+    id: orderRef.id,
+    uid,
+    memberId,
+    fundId: user.activeFundId,
+    amountToman: amount,
+    amountRial: amount * 10,
+    status: "created",
+    kind: "member_link",
+    createdAt: new Date().toISOString(),
+  });
+  if (!bankima.configured()) {
+    return {
+      orderId: orderRef.id,
+      redirectUrl: `polad://pay?order=${orderRef.id}&demo=1`,
+      url: `polad://pay?order=${orderRef.id}&demo=1`,
+      memberId,
+      amountToman: amount,
+    };
+  }
+  try {
+    const data = await bankima.createPaymentLink(memberId, amount);
+    await orderRef.update({ bankimaId: data.paymentId || data.id, status: "redirected" });
+    return { ...data, orderId: orderRef.id, memberId, amountToman: amount };
+  } catch (e) {
+    await orderRef.update({ status: "failed", error: String(e.message || e) });
+    mapBankimaError(e);
+  }
+});
+
+exports.bankimaGetBalance = onCall(async (req) => {
+  const uid = assertAuth(req);
+  const user = (await db.doc(`users/${uid}`).get()).data();
+  await assertAdmin(user.activeFundId, uid);
+  if (!bankima.configured()) {
+    return { accountId: req.data.accountId, availableToman: 0, status: "unconfigured" };
+  }
+  try {
+    return await bankima.getBalance(req.data.accountId);
+  } catch (e) {
+    mapBankimaError(e);
+  }
+});
+
+exports.bankimaTransfer = onCall(async (req) => {
+  const uid = assertAuth(req);
+  const user = (await db.doc(`users/${uid}`).get()).data();
+  await assertAdmin(user.activeFundId, uid);
+  const rail = req.data.rail || "paya";
+  if (!["paya", "satna", "pol"].includes(rail)) {
+    throw new HttpsError("invalid-argument", "ریل انتقال نامعتبر است");
+  }
+  if (!bankima.configured()) {
+    throw new HttpsError("failed-precondition", "بانکیما پیکربندی نشده؛ انتقال انجام نشد");
+  }
+  try {
+    return await bankima.transfer({
+      rail,
+      destinationIban: req.data.destinationIban,
+      amountToman: Number(req.data.amountToman),
+      description: req.data.description || "انتقال صندوق پولاد",
+      trackId: req.data.trackId || crypto.randomUUID(),
+    });
+  } catch (e) {
+    mapBankimaError(e);
+  }
 });
 
 async function notify(userId, title, body) {
@@ -448,19 +597,3 @@ async function notify(userId, title, body) {
     // never fail the money path because of push
   }
 }
-
-exports.sendInstallmentReminders = onSchedule("every day 08:00", async () => {
-  const now = new Date();
-  const until = new Date(now.getTime() + 24 * 3600 * 1000);
-  const snaps = await db.collection("installments").where("status", "==", "upcoming").get();
-  for (const doc of snaps.docs) {
-    const i = doc.data();
-    const due = new Date(i.dueDate);
-    if (due >= now && due <= until) {
-      await notify(i.memberId, "یادآوری قسط", "سررسید قسط شما فردا است.");
-    }
-    if (due < now) {
-      await doc.ref.update({ status: "overdue" });
-    }
-  }
-});

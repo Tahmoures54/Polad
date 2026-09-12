@@ -17,29 +17,24 @@ service cloud.firestore {
       return isFundMember(fundId) && memberDoc(fundId).data.role == 'admin';
     }
 
+    // users: هر کاربر فقط پروفایل خودش را بخواند/بنویسد.
     match /users/{userId} {
-      allow read: if signedIn() && (uid() == userId || request.auth.token.platformAdmin == true);
-      allow create: if signedIn() && uid() == userId
-        && request.resource.data.phone is string
-        && request.resource.data.keys().hasAll(['phone', 'displayName', 'createdAt']);
-      allow update: if signedIn() && uid() == userId
-        && !request.resource.data.diff(resource.data).affectedKeys()
-            .hasAny(['phone', 'createdAt']);
+      allow read, write: if signedIn() && uid() == userId;
       allow delete: if false;
     }
 
+    // funds: خواندن برای همه اعضا، نوشتن فقط admin.
     match /funds/{fundId} {
       allow read: if isFundMember(fundId);
       allow create: if signedIn();
       allow update: if isFundAdmin(fundId)
-        && request.resource.data.serviceFeeRate >= 0.005
-        && request.resource.data.serviceFeeRate <= 0.01
         && request.resource.data.adminId == resource.data.adminId;
       allow delete: if false;
 
       match /members/{memberId} {
         allow read: if isFundMember(fundId);
-        allow write: if isFundAdmin(fundId) || (signedIn() && uid() == memberId && request.method == 'create');
+        allow create: if signedIn() && uid() == memberId;
+        allow update, delete: if isFundAdmin(fundId);
       }
       match /invites/{inviteId} {
         allow read: if isFundMember(fundId);
@@ -47,37 +42,47 @@ service cloud.firestore {
       }
     }
 
+    // transactions: خواندن صاحب یا admin، ایجاد برای اعضا، تغییر وضعیت فقط admin (از طریق Functions).
     match /transactions/{transactionId} {
       allow read: if signedIn() && (
         resource.data.memberId == uid() || isFundAdmin(resource.data.fundId)
       );
       allow create: if signedIn()
-        && request.resource.data.memberId == uid()
-        && request.resource.data.status == 'pending'
+        && isFundMember(request.resource.data.fundId)
+        && request.resource.data.status in ['pending_approval', 'pending']
         && request.resource.data.amount is int
         && request.resource.data.amount > 0;
-      allow update: if false; // only Cloud Functions (Admin SDK)
+      allow update: if isFundAdmin(resource.data.fundId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewerId', 'reviewNote']);
       allow delete: if false;
     }
 
+    // loans: خواندن برای اعضا؛ ایجاد درخواست عضو؛ تصمیم/تغییر فقط admin از Functions.
     match /loans/{loanId} {
       allow read: if isFundMember(resource.data.fundId);
       allow create: if signedIn()
-        && request.resource.data.memberId == uid()
+        && isFundMember(request.resource.data.fundId)
         && request.resource.data.status == 'requested';
       allow update, delete: if false;
     }
 
+    // installments: خواندن اعضا، تغییر فقط admin (Functions).
     match /installments/{installmentId} {
       allow read: if isFundMember(resource.data.fundId);
       allow write: if false;
     }
 
+    // draws: خواندن اعضا، تغییر فقط admin (Functions).
     match /draws/{drawId} {
       allow read: if isFundMember(resource.data.fundId);
       allow write: if false;
     }
 
+    // fees / صورتحساب نرم‌افزار: خواندن فقط admin.
+    match /fees/{feeId} {
+      allow read: if isFundAdmin(resource.data.fundId);
+      allow write: if false;
+    }
     match /service_invoices/{invoiceId} {
       allow read: if isFundAdmin(resource.data.fundId);
       allow write: if false;

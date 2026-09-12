@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/app_widgets.dart';
+import '../../../domain/entities/finance.dart';
 import '../../../domain/enums.dart';
 import '../../blocs/app_blocs.dart';
 import 'member_widgets.dart';
@@ -68,75 +70,6 @@ class HomeShell extends StatelessWidget {
   }
 }
 
-class AdminDashboard extends StatelessWidget {
-  const AdminDashboard({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<HomeCubit, HomeState>(
-      builder: (context, state) {
-        if (state.loading || state.fund == null) return const LoadingView();
-        final fund = state.fund!;
-        return CustomScrollView(
-          slivers: [
-            SliverAppBar(pinned: true, title: Text(fund.name)),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              sliver: SliverList.list(children: [
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    SizedBox(width: 160, child: SummaryCard(title: 'موجودی صندوق', value: fund.balance, icon: Icons.account_balance_wallet_outlined)),
-                    SizedBox(width: 160, child: SummaryCard(title: 'اعضا', value: fund.memberCount, icon: Icons.groups_outlined, color: AppColors.gold)),
-                    SizedBox(width: 160, child: SummaryCard(title: 'وام فعال', value: state.activeLoans, icon: Icons.handshake_outlined, color: AppColors.info)),
-                    SizedBox(width: 160, child: SummaryCard(title: 'اقساط معوق', value: state.overdueCount, icon: Icons.warning_amber_outlined, color: AppColors.danger)),
-                  ],
-                ),
-                SectionHeader('در انتظار تأیید', action: TextButton(onPressed: () => context.go('/pending'), child: Text('${faNum(state.pending.length)} مورد'))),
-                if (state.pending.isEmpty)
-                  const EmptyView(title: 'مورد معلقی نیست', subtitle: 'پرداخت‌های ثبت‌شده اعضا اینجا ظاهر می‌شود.', icon: Icons.verified_outlined)
-                else
-                  ...state.pending.take(3).map((t) => PendingTxCard(tx: t)),
-                const SectionHeader('میان‌برها'),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _Quick('اعضا', Icons.person_add_alt, () => context.go('/members')),
-                    _Quick('وام‌ها', Icons.handshake_outlined, () => context.push('/loans')),
-                    _Quick('اقساط', Icons.event_note_outlined, () => context.push('/installments-admin')),
-                    _Quick('قرعه‌کشی', Icons.casino_outlined, () => context.push('/draws')),
-                    _Quick('گزارش', Icons.insights_outlined, () => context.push('/reports')),
-                  ],
-                ),
-              ]),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _Quick extends StatelessWidget {
-  const _Quick(this.label, this.icon, this.onTap);
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ActionChip(
-      avatar: Icon(icon, size: 18, color: AppColors.navy),
-      label: Text(label),
-      onPressed: onTap,
-      backgroundColor: AppColors.surface,
-      side: const BorderSide(color: AppColors.divider),
-    );
-  }
-}
-
 class PendingScreen extends StatelessWidget {
   const PendingScreen({super.key});
 
@@ -163,12 +96,13 @@ class PendingScreen extends StatelessWidget {
 
 class PendingTxCard extends StatelessWidget {
   const PendingTxCard({super.key, required this.tx, this.expanded = false});
-  final dynamic tx;
+  final MoneyTransaction tx;
   final bool expanded;
 
   @override
   Widget build(BuildContext context) {
-    final t = tx as dynamic;
+    final t = tx;
+    final receipt = t.receiptUrl;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -177,15 +111,42 @@ class PendingTxCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Expanded(child: Text(t.memberName as String, style: const TextStyle(fontWeight: FontWeight.w700))),
-                StatusChip(label: (t.status as TransactionStatus).fa, tone: ChipTone.warning),
+                Expanded(child: Text(t.memberName, style: const TextStyle(fontWeight: FontWeight.w700))),
+                StatusChip(label: t.status.fa, tone: ChipTone.warning),
               ],
             ),
             const SizedBox(height: 8),
-            AmountText(t.amount as int),
+            AmountText(t.amount),
             const SizedBox(height: 6),
-            Text('${(t.type as TransactionType).fa} • کد ${faNum(t.trackingCode ?? '—')}'),
-            Text(jalaliDateTime(t.submittedAt as DateTime), style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+            Text('${t.type.fa} • ${t.source.fa} • کد ${faNum(t.trackingCode ?? '—')}'),
+            Text(jalaliDateTime(t.submittedAt), style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+            if (receipt != null && receipt.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () => showDialog<void>(
+                  context: context,
+                  builder: (ctx) => Dialog(
+                    child: InteractiveViewer(
+                      child: receipt.startsWith('http')
+                          ? CachedNetworkImage(imageUrl: receipt)
+                          : Image.asset(receipt, errorBuilder: (_, _, _) => const Icon(Icons.broken_image)),
+                    ),
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(
+                    height: 120,
+                    child: receipt.startsWith('http')
+                        ? CachedNetworkImage(imageUrl: receipt, fit: BoxFit.cover)
+                        : const ColoredBox(
+                            color: AppColors.mutedSurface,
+                            child: Center(child: Text('پیش‌نمایش فیش')),
+                          ),
+                  ),
+                ),
+              ),
+            ],
             if (expanded) ...[
               const SizedBox(height: 12),
               Row(
@@ -193,7 +154,7 @@ class PendingTxCard extends StatelessWidget {
                   Expanded(
                     child: FilledButton(
                       style: FilledButton.styleFrom(backgroundColor: AppColors.success),
-                      onPressed: () => context.read<HomeCubit>().approveTx(t.id as String),
+                      onPressed: () => context.read<HomeCubit>().approveTx(t.id),
                       child: const Text('تأیید'),
                     ),
                   ),
@@ -204,7 +165,7 @@ class PendingTxCard extends StatelessWidget {
                       onPressed: () async {
                         final ok = await confirmSheet(context, title: 'رد تراکنش', message: 'این پرداخت ثبت نمی‌شود و عضو باید دوباره ارسال کند.', confirmLabel: 'رد کردن', destructive: true);
                         if (ok && context.mounted) {
-                          context.read<HomeCubit>().rejectTx(t.id as String, 'رد توسط مدیر');
+                          context.read<HomeCubit>().rejectTx(t.id, 'رد توسط مدیر');
                         }
                       },
                       child: const Text('رد'),
@@ -307,6 +268,7 @@ class MoreScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('بیشتر')),
       body: ListView(
         children: [
+          ListTile(leading: const Icon(Icons.settings_outlined), title: const Text('تنظیمات'), onTap: () => context.push('/settings')),
           if (admin) ...[
             ListTile(leading: const Icon(Icons.handshake_outlined), title: const Text('مدیریت وام'), onTap: () => context.push('/loans')),
             ListTile(leading: const Icon(Icons.event_note_outlined), title: const Text('پیگیری اقساط'), onTap: () => context.push('/installments-admin')),
@@ -318,6 +280,7 @@ class MoreScreen extends StatelessWidget {
             ListTile(leading: const Icon(Icons.percent), title: const Text('نرخ کارمزد'), onTap: () => context.push('/fee-rate')),
             ListTile(leading: const Icon(Icons.tune), title: const Text('تنظیمات صندوق'), onTap: () => context.push('/fund-settings')),
             ListTile(leading: const Icon(Icons.sms_outlined), title: const Text('تطبیق پیامک بانکی'), onTap: () => context.push('/sms')),
+            ListTile(leading: const Icon(Icons.account_balance_outlined), title: const Text('بانکیما'), onTap: () => context.push('/bankima')),
           ] else ...[
             ListTile(leading: const Icon(Icons.handshake_outlined), title: const Text('وام‌های من'), onTap: () => context.push('/loans')),
             ListTile(leading: const Icon(Icons.add), title: const Text('درخواست وام'), onTap: () => context.push('/loan-request')),

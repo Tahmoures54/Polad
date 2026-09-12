@@ -1,25 +1,21 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:collection/collection.dart';
-import 'package:excel/excel.dart' hide Border;
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:share_plus/share_plus.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/constants/app_constants.dart';
-import '../../core/utils/formatters.dart';
 import '../../core/utils/result.dart';
 import '../../domain/entities/finance.dart';
 import '../../domain/entities/people.dart';
+import '../../domain/entities/reports.dart';
 import '../../domain/enums.dart';
 import '../../domain/repositories/repositories.dart';
 import '../../domain/services/finance_services.dart';
+import '../../domain/services/report_builder.dart';
 import '../local/cache_store.dart';
+import '../reports/report_export.dart';
 import '../sms/bank_sms_parser.dart';
 
 class DemoStore {
@@ -357,10 +353,10 @@ class DemoAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<Result<void>> updateProfile({required String displayName}) async {
+  Future<Result<void>> updateProfile({required String displayName, String? avatarUrl}) async {
     final user = store.currentUser;
     if (user == null) return const Err('وارد نشده‌اید');
-    final next = user.copyWith(displayName: displayName);
+    final next = user.copyWith(displayName: displayName, avatarUrl: avatarUrl ?? user.avatarUrl);
     store.users[user.id] = next;
     store.currentUser = next;
     store.authController.add(next);
@@ -563,11 +559,15 @@ class DemoTransactionRepository implements TransactionRepository {
     if (user == null) return const Err('وارد نشده‌اید');
     final fundId = user.activeFundId;
     if (fundId == null) return const Err('صندوق فعالی ندارید');
+    if (input.source == PaymentSource.smsMatch && !store.isAdmin(fundId)) {
+      return const Err('فقط مدیر می‌تواند پیشنهاد پیامک ثبت کند');
+    }
+    // پیشنهاد پیامک و لینک بانکیما همیشه pending می‌مانند؛ تأیید خودکار نداریم.
     final tx = MoneyTransaction(
       id: store.newId(),
       fundId: fundId,
-      memberId: user.id,
-      memberName: user.displayName,
+      memberId: input.memberId ?? user.id,
+      memberName: input.memberName ?? user.displayName,
       type: input.type,
       amount: input.amount,
       status: TransactionStatus.pending,
@@ -577,6 +577,8 @@ class DemoTransactionRepository implements TransactionRepository {
       receiptUrl: input.receiptPath,
       relatedInstallmentId: input.relatedInstallmentId,
       relatedLoanId: input.relatedLoanId,
+      source: input.source,
+      reviewNote: input.note,
     );
     store.transactions[fundId] = [...store.transactions[fundId] ?? const [], tx];
     store.emitFund(fundId);
@@ -866,101 +868,40 @@ class DemoBillingRepository implements BillingRepository {
 class DemoReportRepository implements ReportRepository {
   DemoReportRepository(this.store);
   final DemoStore store;
+  final _builder = const ReportBuilder();
+  final _export = const ReportExporter();
 
   @override
-  Future<FundReport> build(String fundId) async {
-    final txs = (store.transactions[fundId] ?? []).where((t) => t.status == TransactionStatus.approved);
-    final inst = store.installments[fundId] ?? [];
-    final overdue = inst.where((i) => i.status == InstallmentStatus.overdue).toList();
-    final grouped = <String, CashflowPoint>{};
-    for (final t in txs) {
-      final label = jalaliDate(t.occurredAt).substring(0, 8);
-      final prev = grouped[label] ?? CashflowPoint(label: label, inflow: 0, outflow: 0);
-      final isOut = t.type == TransactionType.loanDisbursement || t.type == TransactionType.withdrawal;
-      grouped[label] = CashflowPoint(
-        label: label,
-        inflow: prev.inflow + (isOut ? 0 : t.amount),
-        outflow: prev.outflow + (isOut ? t.amount : 0),
-      );
-    }
-    final inSum = txs.where((t) => t.type != TransactionType.loanDisbursement && t.type != TransactionType.withdrawal).fold<int>(0, (a, b) => a + b.amount);
-    final outSum = txs.where((t) => t.type == TransactionType.loanDisbursement || t.type == TransactionType.withdrawal).fold<int>(0, (a, b) => a + b.amount);
+  Future<PoladReport> build(String fundId, {ReportFilter filter = const ReportFilter()}) async {
     final fund = store.funds[fundId];
-    final charity = fund?.isCharity ?? false;
-    final rate = fund?.serviceFeeRate ?? 0.005;
-    final fee = const FeeCalculator().accrue(txs.map((t) => t.amount), rate, charityZeroFee: charity);
-    return FundReport(
-      balance: fund?.balance ?? 0,
-      totalIn: inSum,
-      totalOut: outSum,
-      overdueCount: overdue.length,
-      overdueAmount: overdue.fold(0, (a, b) => a + b.amount),
-      points: grouped.values.toList(),
-      softwareFeeToAdmin: fee,
-      serviceFeeRate: rate,
-      charityZeroFee: charity,
+    if (fund == null) {
+      throw StateError('صندوق نیست');
+    }
+    return _builder.build(
+      fund: fund,
+      transactions: store.transactions[fundId] ?? const [],
+      installments: store.installments[fundId] ?? const [],
+      loans: store.loans[fundId] ?? const [],
+      members: store.members[fundId] ?? const [],
+      invoices: store.invoices[fundId] ?? const [],
+      filter: filter,
     );
   }
 
   @override
-  Future<Result<String>> exportExcel(String fundId) async {
+  Future<Result<String>> exportExcel(String fundId, {ReportFilter filter = const ReportFilter(), bool share = true}) async {
     final fund = store.funds[fundId];
     if (fund == null) return const Err('صندوق نیست');
-    if (!fund.isPremium) return const Err('خروجی اکسل در نسخه پریمیوم فعال است');
-    final excel = Excel.createExcel();
-    final sheet = excel['تراکنش‌ها'];
-    sheet.appendRow([TextCellValue('عضو'), TextCellValue('نوع'), TextCellValue('مبلغ'), TextCellValue('وضعیت'), TextCellValue('کد پیگیری')]);
-    for (final t in store.transactions[fundId] ?? const <MoneyTransaction>[]) {
-      sheet.appendRow([
-        TextCellValue(t.memberName),
-        TextCellValue(t.type.fa),
-        IntCellValue(t.amount),
-        TextCellValue(t.status.fa),
-        TextCellValue(t.trackingCode ?? ''),
-      ]);
-    }
-    final dir = await getTemporaryDirectory();
-    final path = '${dir.path}/polad-$fundId.xlsx';
-    final bytes = excel.encode();
-    if (bytes == null) return const Err('ساخت فایل ناموفق بود');
-    await File(path).writeAsBytes(bytes);
-    await SharePlus.instance.share(ShareParams(files: [XFile(path)], text: 'گزارش صندوق پولاد'));
-    return Ok(path);
+    final report = await build(fundId, filter: filter);
+    return _export.excel(fund, report, share: share);
   }
 
   @override
-  Future<Result<String>> exportPdf(String fundId) async {
+  Future<Result<String>> exportPdf(String fundId, {ReportFilter filter = const ReportFilter(), bool share = true}) async {
     final fund = store.funds[fundId];
     if (fund == null) return const Err('صندوق نیست');
-    if (!fund.isPremium) return const Err('خروجی PDF در نسخه پریمیوم فعال است');
-    final report = await build(fundId);
-    final fontData = await rootBundle.load('assets/fonts/Vazirmatn-Regular.ttf');
-    final font = pw.Font.ttf(fontData);
-    final doc = pw.Document();
-    doc.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        build: (_) => pw.Directionality(
-          textDirection: pw.TextDirection.rtl,
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text(fund.name, style: pw.TextStyle(font: font, fontSize: 18, fontWeight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 12),
-              pw.Text('موجودی: ${report.balance}', style: pw.TextStyle(font: font)),
-              pw.Text('ورودی: ${report.totalIn}', style: pw.TextStyle(font: font)),
-              pw.Text('خروجی: ${report.totalOut}', style: pw.TextStyle(font: font)),
-              pw.Text('معوقات: ${report.overdueCount}', style: pw.TextStyle(font: font)),
-            ],
-          ),
-        ),
-      ),
-    );
-    final dir = await getTemporaryDirectory();
-    final path = '${dir.path}/polad-$fundId.pdf';
-    await File(path).writeAsBytes(await doc.save());
-    await SharePlus.instance.share(ShareParams(files: [XFile(path)]));
-    return Ok(path);
+    final report = await build(fundId, filter: filter);
+    return _export.pdf(fund, report, share: share);
   }
 }
 

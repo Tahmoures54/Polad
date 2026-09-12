@@ -17,6 +17,8 @@ import '../../data/local/cache_store.dart';
 import '../../data/payments/bankima_client.dart';
 import '../../data/services/services.dart';
 import '../../data/sms/bank_sms_parser.dart';
+import '../../data/sms/demo_sms_inbox.dart';
+import '../../data/sms/sms_parser_service.dart';
 import '../../domain/repositories/repositories.dart';
 import '../../domain/services/finance_services.dart';
 import '../../firebase_options.dart';
@@ -32,7 +34,6 @@ Future<void> setupLocator({CacheStore? cache}) async {
   sl.registerLazySingleton<FeeCalculator>(FeeCalculator.new);
   sl.registerLazySingleton<LoanEligibility>(LoanEligibility.new);
   sl.registerLazySingleton<BankimaClient>(BankimaClient.new);
-  sl.registerLazySingleton<SmsInbox>(MethodChannelSmsInbox.new);
 
   if (AppConfig.useFirebase) {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -52,6 +53,10 @@ Future<void> setupLocator({CacheStore? cache}) async {
     sl.registerSingleton<BillingRepository>(FirebaseBillingRepository(db, fn));
     sl.registerSingleton<PaymentGateway>(FirebasePaymentGateway(fn));
     sl.registerSingleton<ReportRepository>(FirebaseReportRepository(db));
+    sl.registerLazySingleton<SmsInbox>(MethodChannelSmsInbox.new);
+    sl.registerLazySingleton<BankimaService>(
+      () => CallableBankimaService(sl<FunctionsService>(), retry: retry),
+    );
 
     sl.registerSingleton<FirestoreService>(FirebaseFirestoreService(db, retry: retry));
     sl.registerSingleton<FunctionsService>(
@@ -95,6 +100,8 @@ Future<void> setupLocator({CacheStore? cache}) async {
     sl.registerSingleton<BillingRepository>(DemoBillingRepository(demo));
     sl.registerSingleton<ReportRepository>(DemoReportRepository(demo));
     sl.registerSingleton<PaymentGateway>(DemoPaymentGateway());
+    sl.registerLazySingleton<SmsInbox>(DemoSmsInbox.new);
+    sl.registerLazySingleton<BankimaService>(DemoBankimaService.new);
 
     sl.registerSingleton<FirestoreService>(InMemoryFirestoreService());
     sl.registerSingleton<FunctionsService>(DemoFunctionsService());
@@ -102,4 +109,12 @@ Future<void> setupLocator({CacheStore? cache}) async {
     sl.registerSingleton<AuthService>(DemoAuthService(demo));
     sl.registerSingleton<NotificationService>(DemoNotificationService());
   }
+
+  sl.registerLazySingleton<SmsParserService>(
+    () => SmsParserService(
+      inbox: sl<SmsInbox>(),
+      transactions: sl<TransactionRepository>(),
+      parser: sl<BankSmsParser>(),
+    ),
+  );
 }

@@ -40,6 +40,12 @@ extension TransactionStatusWire on TransactionStatus {
 
 enum PaymentSource { manual, bankima, smsMatch }
 
+/// ریل انتقال وجه بانکیما. باهمتا تعطیل است و فقط همین مسیرها استفاده می‌شود.
+enum BankTransferRail { paya, satna, pol }
+
+/// بانک‌های پشتیبانی‌شده در پارسر پیامک مدیر.
+enum IranianBank { mellat, melli, saderat, pasargad, saman, parsian, unknown }
+
 enum LoanStatus { requested, approved, rejected, active, closed }
 
 enum InstallmentStatus { upcoming, paid, overdue }
@@ -105,6 +111,37 @@ extension DrawSelectionModeX on DrawSelectionMode {
   String get fa => switch (this) {
     DrawSelectionMode.random => 'تصادفی',
     DrawSelectionMode.manual => 'انتخاب دستی مدیر',
+  };
+}
+
+extension PaymentSourceX on PaymentSource {
+  String get fa => switch (this) {
+    PaymentSource.manual => 'ثبت دستی',
+    PaymentSource.bankima => 'بانکیما',
+    PaymentSource.smsMatch => 'پیشنهاد پیامک',
+  };
+}
+
+extension BankTransferRailX on BankTransferRail {
+  String get fa => switch (this) {
+    BankTransferRail.paya => 'پایا',
+    BankTransferRail.satna => 'ساتنا',
+    BankTransferRail.pol => 'پل',
+  };
+
+  /// مقدار سیم برای API / Firestore.
+  String get wire => name;
+}
+
+extension IranianBankX on IranianBank {
+  String get fa => switch (this) {
+    IranianBank.mellat => 'ملت',
+    IranianBank.melli => 'ملی',
+    IranianBank.saderat => 'صادرات',
+    IranianBank.pasargad => 'پاسارگاد',
+    IranianBank.saman => 'سامان',
+    IranianBank.parsian => 'پارسیان',
+    IranianBank.unknown => 'نامشخص',
   };
 }
 

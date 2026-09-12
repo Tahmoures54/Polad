@@ -9,9 +9,12 @@ import '../blocs/app_blocs.dart';
 import '../screens/auth/auth_screens.dart';
 import '../screens/billing/billing_screens.dart';
 import '../screens/draws/draw_screens.dart';
+import '../screens/home/admin_dashboard_screen.dart';
 import '../screens/home/home_screens.dart';
 import '../screens/loans/loan_screens.dart';
 import '../screens/reports/report_screens.dart';
+import '../screens/payments/bankima_screen.dart';
+import '../screens/settings/settings_hub_screen.dart';
 import '../screens/settings/settings_screens.dart';
 
 final _root = GlobalKey<NavigatorState>();
@@ -99,7 +102,13 @@ GoRouter createRouter(SessionCubit session) {
       GoRoute(path: '/fee-rate', builder: (_, _) => const FeeRateScreen()),
       GoRoute(path: '/fund-settings', builder: (_, _) => const FundSettingsScreen()),
       GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
+      GoRoute(path: '/settings', builder: (_, _) => const SettingsHubScreen()),
+      GoRoute(path: '/theme', builder: (_, _) => const ThemeSettingsScreen()),
+      GoRoute(path: '/notifications', builder: (_, _) => const NotificationSettingsScreen()),
+      GoRoute(path: '/legal', builder: (_, _) => const LegalScreen()),
+      GoRoute(path: '/about', builder: (_, _) => const AboutScreen()),
       GoRoute(path: '/sms', builder: (_, _) => const SmsMatchScreen()),
+      GoRoute(path: '/bankima', builder: (_, _) => const BankimaToolsScreen()),
       GoRoute(path: '/join', builder: (_, _) => const FundSetupScreen()),
     ],
   );

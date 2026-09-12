@@ -56,7 +56,7 @@ class FakeAuth implements AuthRepository {
   }
 
   @override
-  Future<Result<void>> updateProfile({required String displayName}) async {
+  Future<Result<void>> updateProfile({required String displayName, String? avatarUrl}) async {
     user = user?.copyWith(displayName: displayName);
     return update;
   }

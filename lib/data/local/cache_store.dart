@@ -41,4 +41,10 @@ class CacheStore {
 
   Future<void> setIntendedRole(String role) =>
       prefs.setString(AppConstants.prefsIntendedRole, role);
+
+  String get themeMode => prefs.getString(AppConstants.prefsThemeMode) ?? 'system';
+  Future<void> setThemeMode(String mode) => prefs.setString(AppConstants.prefsThemeMode, mode);
+
+  bool notif(String key) => prefs.getBool(key) ?? true;
+  Future<void> setNotif(String key, bool value) => prefs.setBool(key, value);
 }

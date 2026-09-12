@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/theme/app_theme.dart';
 import 'presentation/blocs/app_blocs.dart';
+import 'presentation/blocs/settings/settings_cubits.dart';
 import 'presentation/router/app_router.dart';
 
 class PoladApp extends StatefulWidget {
@@ -33,38 +34,47 @@ class _PoladAppState extends State<PoladApp> {
   Widget build(BuildContext context) {
     return BlocProvider.value(
       value: _session,
-      child: BlocBuilder<SessionCubit, SessionState>(
-        builder: (context, session) {
-          Widget app = MaterialApp.router(
-            title: 'پولاد',
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.light(),
-            locale: const Locale('fa', 'IR'),
-            supportedLocales: const [Locale('fa', 'IR')],
-            localizationsDelegates: const [
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-            ],
-            routerConfig: router,
-            builder: (context, child) {
-              return Directionality(
-                textDirection: TextDirection.rtl,
-                child: child ?? const SizedBox.shrink(),
-              );
-            },
-          );
-          final user = session.user;
-          final fundId = user?.activeFundId;
-          if (user != null && fundId != null) {
-            app = BlocProvider(
-              key: ValueKey('$fundId-${user.id}'),
-              create: (_) => HomeCubit(fundId: fundId, userId: user.id),
-              child: app,
+      child: BlocProvider(
+        create: (_) => ThemeCubit(),
+        child: BlocBuilder<SessionCubit, SessionState>(
+          builder: (context, session) {
+            Widget app = BlocBuilder<ThemeCubit, ThemeMode>(
+              builder: (context, themeMode) {
+                return MaterialApp.router(
+                  title: 'پولاد',
+                  debugShowCheckedModeBanner: false,
+                  theme: AppTheme.light(),
+                  darkTheme: AppTheme.dark(),
+                  themeMode: themeMode,
+                  locale: const Locale('fa', 'IR'),
+                  supportedLocales: const [Locale('fa', 'IR')],
+                  localizationsDelegates: const [
+                    GlobalMaterialLocalizations.delegate,
+                    GlobalWidgetsLocalizations.delegate,
+                    GlobalCupertinoLocalizations.delegate,
+                  ],
+                  routerConfig: router,
+                  builder: (context, child) {
+                    return Directionality(
+                      textDirection: TextDirection.rtl,
+                      child: child ?? const SizedBox.shrink(),
+                    );
+                  },
+                );
+              },
             );
-          }
-          return app;
-        },
+            final user = session.user;
+            final fundId = user?.activeFundId;
+            if (user != null && fundId != null) {
+              app = BlocProvider(
+                key: ValueKey('$fundId-${user.id}'),
+                create: (_) => HomeCubit(fundId: fundId, userId: user.id),
+                child: app,
+              );
+            }
+            return app;
+          },
+        ),
       ),
     );
   }
