@@ -9,6 +9,10 @@ import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/app_widgets.dart';
 import '../../../domain/enums.dart';
 import '../../blocs/app_blocs.dart';
+import 'member_widgets.dart';
+
+export 'member_dashboard_screen.dart';
+export 'payment_screen.dart';
 
 class HomeShell extends StatelessWidget {
   const HomeShell({super.key, required this.child, required this.index});
@@ -60,59 +64,6 @@ class HomeShell extends StatelessWidget {
               ],
       ),
     ),
-    );
-  }
-}
-
-class MemberDashboard extends StatelessWidget {
-  const MemberDashboard({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<HomeCubit, HomeState>(
-      builder: (context, state) {
-        if (state.loading || state.me == null) return const LoadingView();
-        final me = state.me!;
-        final upcoming = state.myInstallments.where((i) => i.status != InstallmentStatus.paid).take(4).toList();
-        return CustomScrollView(
-          slivers: [
-            SliverAppBar(
-              pinned: true,
-              title: Text(state.fund?.name ?? 'پولاد'),
-              actions: [
-                IconButton(onPressed: () => context.push('/pay'), icon: const Icon(Icons.add_card_outlined)),
-              ],
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              sliver: SliverList.list(children: [
-                Text('سلام ${me.displayName}', style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 12),
-                Row(children: [
-                  Expanded(child: SummaryCard(title: 'سهم من', value: me.shareBalance, icon: Icons.savings_outlined, color: AppColors.navy)),
-                  const SizedBox(width: 10),
-                  Expanded(child: SummaryCard(title: 'بدهی من', value: me.debt, icon: Icons.south_west, color: AppColors.danger)),
-                ]),
-                const SizedBox(height: 10),
-                SummaryCard(title: 'طلب من', value: me.credit, icon: Icons.north_east, color: AppColors.success),
-                const SectionHeader('اقساط پیش‌رو'),
-                if (upcoming.isEmpty)
-                  const EmptyView(title: 'قسط بازی ندارید', subtitle: 'وقتی وامی فعال شود، اقساط اینجا می‌آید.', icon: Icons.event_available_outlined)
-                else
-                  ...upcoming.map((i) => _InstallmentTile(item: i)),
-                const SectionHeader('آخرین تراکنش‌ها'),
-                ...state.transactions.where((t) => t.memberId == me.userId).take(6).map(_TxTile.new),
-                const SizedBox(height: 12),
-                FilledButton.icon(
-                  onPressed: () => context.push('/pay'),
-                  icon: const Icon(Icons.check_circle_outline),
-                  label: const Text('ثبت پرداخت'),
-                ),
-              ]),
-            ),
-          ],
-        );
-      },
     );
   }
 }
@@ -345,62 +296,6 @@ class MembersScreen extends StatelessWidget {
   }
 }
 
-class _InstallmentTile extends StatelessWidget {
-  const _InstallmentTile({required this.item});
-  final dynamic item;
-
-  @override
-  Widget build(BuildContext context) {
-    final i = item;
-    final tone = switch (i.status as InstallmentStatus) {
-      InstallmentStatus.paid => ChipTone.success,
-      InstallmentStatus.overdue => ChipTone.danger,
-      InstallmentStatus.upcoming => ChipTone.warning,
-    };
-    return Card(
-      child: ListTile(
-        title: Text('قسط ${faNum(i.sequence)}'),
-        subtitle: Text('سررسید ${jalaliDate(i.dueDate as DateTime)}'),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(toman(i.amount as int), style: const TextStyle(fontFamily: 'VazirmatnFD', fontWeight: FontWeight.w700)),
-            StatusChip(label: (i.status as InstallmentStatus).fa, tone: tone),
-          ],
-        ),
-        onTap: i.status == InstallmentStatus.paid ? null : () => context.push('/pay', extra: i.id),
-      ),
-    );
-  }
-}
-
-class _TxTile extends StatelessWidget {
-  const _TxTile(this.tx);
-  final dynamic tx;
-
-  @override
-  Widget build(BuildContext context) {
-    final tone = switch (tx.status as TransactionStatus) {
-      TransactionStatus.approved => ChipTone.success,
-      TransactionStatus.rejected => ChipTone.danger,
-      TransactionStatus.pending => ChipTone.warning,
-    };
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text((tx.type as TransactionType).fa),
-      subtitle: Text(jalaliDate(tx.occurredAt as DateTime)),
-      trailing: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(toman(tx.amount as int), style: const TextStyle(fontFamily: 'VazirmatnFD')),
-          StatusChip(label: (tx.status as TransactionStatus).fa, tone: tone),
-        ],
-      ),
-    );
-  }
-}
-
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
 
@@ -437,6 +332,7 @@ class MoreScreen extends StatelessWidget {
   }
 }
 
+/// اقساط عضو؛ همان کارت‌های رنگی داشبورد با Pull-to-refresh.
 class InstallmentsScreen extends StatelessWidget {
   const InstallmentsScreen({super.key});
 
@@ -446,9 +342,35 @@ class InstallmentsScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('اقساط من')),
       body: BlocBuilder<HomeCubit, HomeState>(
         builder: (context, state) {
-          final items = state.myInstallments;
-          if (items.isEmpty) return const EmptyView(title: 'قسطی ثبت نشده');
-          return ListView(padding: const EdgeInsets.all(16), children: items.map((i) => _InstallmentTile(item: i)).toList());
+          final items = [...state.myInstallments]..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+          return RefreshIndicator(
+            color: AppColors.navy,
+            onRefresh: () => context.read<HomeCubit>().refresh(),
+            child: items.isEmpty
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: const [
+                      SizedBox(height: 80),
+                      EmptyView(
+                        title: 'قسطی ثبت نشده',
+                        subtitle: 'پس از تأیید وام، سررسید اقساط اینجا می‌آید.',
+                        icon: Icons.event_available_outlined,
+                      ),
+                    ],
+                  )
+                : ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    children: items
+                        .map(
+                          (i) => Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: MemberInstallmentCard(item: i),
+                          ),
+                        )
+                        .toList(),
+                  ),
+          );
         },
       ),
     );

@@ -14,6 +14,30 @@ enum TransactionType {
 
 enum TransactionStatus { pending, approved, rejected }
 
+/// مقدار ذخیره‌شده در Firestore برای وضعیت تراکنش.
+extension TransactionStatusWire on TransactionStatus {
+  /// `pending` در دامنه همان `pending_approval` در Firestore است.
+  String get firestoreValue => switch (this) {
+        TransactionStatus.pending => 'pending_approval',
+        TransactionStatus.approved => 'approved',
+        TransactionStatus.rejected => 'rejected',
+      };
+
+  static TransactionStatus fromWire(dynamic raw) {
+    switch (raw?.toString()) {
+      case 'pending_approval':
+      case 'pending':
+        return TransactionStatus.pending;
+      case 'approved':
+        return TransactionStatus.approved;
+      case 'rejected':
+        return TransactionStatus.rejected;
+      default:
+        return TransactionStatus.pending;
+    }
+  }
+}
+
 enum PaymentSource { manual, bankima, smsMatch }
 
 enum LoanStatus { requested, approved, rejected, active, closed }

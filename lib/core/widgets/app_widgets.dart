@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:persian_number_utility/persian_number_utility.dart';
 
 import '../theme/app_colors.dart';
@@ -259,6 +260,7 @@ class PersianNumberField extends StatelessWidget {
     this.onChanged,
     this.validator,
     this.textInputAction,
+    this.inputFormatters,
   });
 
   final TextEditingController controller;
@@ -269,6 +271,7 @@ class PersianNumberField extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final FormFieldValidator<String>? validator;
   final TextInputAction? textInputAction;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -279,6 +282,7 @@ class PersianNumberField extends StatelessWidget {
       textInputAction: textInputAction,
       validator: validator,
       onChanged: onChanged,
+      inputFormatters: inputFormatters,
       style: const TextStyle(fontFamily: 'VazirmatnFD', fontSize: 18, letterSpacing: 1),
       decoration: InputDecoration(labelText: label, hintText: hint, counterText: ''),
     );

@@ -163,7 +163,7 @@ exports.submitPayment = onCall(async (req) => {
     memberName: user.displayName || "",
     type: req.data.type || "sharePayment",
     amount,
-    status: "pending",
+    status: "pending_approval",
     occurredAt: req.data.occurredAt,
     submittedAt: new Date().toISOString(),
     trackingCode: String(req.data.trackingCode || ""),
@@ -183,7 +183,9 @@ exports.approveTransaction = onCall(async (req) => {
   if (!snap.exists) throw new HttpsError("not-found", "تراکنش پیدا نشد");
   const tx = snap.data();
   await assertAdmin(tx.fundId, uid);
-  if (tx.status !== "pending") throw new HttpsError("failed-precondition", "قابل تأیید نیست");
+  if (tx.status !== "pending" && tx.status !== "pending_approval") {
+    throw new HttpsError("failed-precondition", "قابل تأیید نیست");
+  }
   const fundRef = db.doc(`funds/${tx.fundId}`);
   const fund = (await fundRef.get()).data();
   const fee = Math.round(tx.amount * fund.serviceFeeRate);

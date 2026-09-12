@@ -81,6 +81,7 @@ class HomeState extends Equatable {
     this.draws = const [],
     this.invoices = const [],
     this.message,
+    this.refreshing = false,
   });
 
   final bool loading;
@@ -93,12 +94,15 @@ class HomeState extends Equatable {
   final List<FundDraw> draws;
   final List<ServiceInvoice> invoices;
   final String? message;
+  final bool refreshing;
 
   bool get isAdmin => me?.isAdmin ?? false;
   List<MoneyTransaction> get pending =>
       transactions.where((t) => t.status == TransactionStatus.pending).toList();
   List<Installment> get myInstallments =>
       installments.where((i) => i.memberId == me?.userId).toList();
+  List<MoneyTransaction> get myTransactions =>
+      transactions.where((t) => t.memberId == me?.userId).toList();
   List<Loan> get requestedLoans => loans.where((l) => l.status == LoanStatus.requested).toList();
   int get activeLoans => loans.where((l) => l.status == LoanStatus.active).length;
   int get overdueCount => installments.where((i) => i.status == InstallmentStatus.overdue).length;
@@ -114,6 +118,7 @@ class HomeState extends Equatable {
     List<FundDraw>? draws,
     List<ServiceInvoice>? invoices,
     String? message,
+    bool? refreshing,
     bool clearMessage = false,
   }) {
     return HomeState(
@@ -127,11 +132,12 @@ class HomeState extends Equatable {
       draws: draws ?? this.draws,
       invoices: invoices ?? this.invoices,
       message: clearMessage ? null : (message ?? this.message),
+      refreshing: refreshing ?? this.refreshing,
     );
   }
 
   @override
-  List<Object?> get props => [loading, fund, me, members, transactions, loans, installments, draws, invoices, message];
+  List<Object?> get props => [loading, fund, me, members, transactions, loans, installments, draws, invoices, message, refreshing];
 }
 
 class HomeCubit extends Cubit<HomeState> {
@@ -245,6 +251,13 @@ class HomeCubit extends Cubit<HomeState> {
   }
 
   void clearMessage() => emit(state.copyWith(clearMessage: true));
+
+  /// تازه‌سازی دستی برای Pull-to-refresh؛ داده‌ها از استریم زنده می‌آیند.
+  Future<void> refresh() async {
+    emit(state.copyWith(refreshing: true));
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    if (!isClosed) emit(state.copyWith(refreshing: false));
+  }
 
   @override
   Future<void> close() async {
