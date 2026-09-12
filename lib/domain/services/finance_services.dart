@@ -1,5 +1,10 @@
 import 'dart:math';
 
+import 'package:collection/collection.dart';
+
+import '../../core/constants/app_constants.dart';
+import '../entities/finance.dart';
+import '../entities/people.dart';
 import '../enums.dart';
 
 /// جدول بازپرداخت قرض‌الحسنه: اصل وام به‌صورت مساوی بین اقساط تقسیم می‌شود.
@@ -95,23 +100,122 @@ class InstallmentCalculator {
 class FeeCalculator {
   const FeeCalculator();
 
-  /// Software service fee billed to the FUND ADMIN.
-  /// Never deducted from the member's payment (Shaparak circular).
-  int softwareServiceFee(int transactionAmount, double rate) {
+  /// هزینه خدمات نرم‌افزاری طبق بخشنامه شاپرک فقط از **مدیر صندوق** گرفته می‌شود.
+  /// هرگز از مبلغ پرداخت عضو کسر نمی‌شود. صندوق خیریه می‌تواند کارمزد صفر باشد.
+  int softwareServiceFee(
+    int transactionAmount,
+    double rate, {
+    bool charityZeroFee = false,
+  }) {
     if (transactionAmount < 0) throw ArgumentError('amount');
-    if (rate < 0.005 || rate > 0.01) {
+    if (charityZeroFee) return 0;
+    if (rate < AppConstants.minServiceFeeRate || rate > AppConstants.maxServiceFeeRate) {
       throw ArgumentError('service fee rate must be between 0.5% and 1%');
     }
     return (transactionAmount * rate).round();
   }
 
-  int accrue(Iterable<int> approvedAmounts, double rate) {
+  int accrue(Iterable<int> approvedAmounts, double rate, {bool charityZeroFee = false}) {
     var sum = 0;
     for (final a in approvedAmounts) {
-      sum += softwareServiceFee(a, rate);
+      sum += softwareServiceFee(a, rate, charityZeroFee: charityZeroFee);
     }
     return sum;
   }
+}
+
+/// ردیف کارمزد یک تراکنش تأییدشده — بدهی مدیر، نه کسر از عضو.
+class FeeLineItem {
+  const FeeLineItem({required this.tx, required this.fee});
+  final MoneyTransaction tx;
+  final int fee;
+}
+
+/// تصویر ماهانه درآمد خدمات نرم‌افزاری پولاد.
+class MonthlyFeeSnapshot {
+  const MonthlyFeeSnapshot({
+    required this.year,
+    required this.month,
+    required this.rate,
+    required this.charityZeroFee,
+    required this.volume,
+    required this.feeTotal,
+    required this.lines,
+    this.invoice,
+  });
+
+  final int year;
+  final int month;
+  final double rate;
+  final bool charityZeroFee;
+  final int volume;
+  final int feeTotal;
+  final List<FeeLineItem> lines;
+  final ServiceInvoice? invoice;
+
+  bool get needsPayment => !charityZeroFee && feeTotal > 0 && invoice?.status != InvoiceStatus.paid;
+}
+
+/// محاسبه خط‌به‌خط کارمزد ماهانه از تراکنش‌های تأییدشده.
+class RevenueService {
+  const RevenueService({this.fees = const FeeCalculator()});
+
+  final FeeCalculator fees;
+
+  static const shaparakGuide =
+      'طبق بخشنامه شاپرک، کارمزد خدمات پرداخت نباید از موجودی یا واریز عضو کسر شود. '
+      'پولاد این مبلغ را به‌عنوان هزینه خدمات نرم‌افزاری فقط برای مدیر صندوق صورتحساب می‌کند.';
+
+  MonthlyFeeSnapshot forMonth({
+    required Fund? fund,
+    required List<MoneyTransaction> transactions,
+    required List<ServiceInvoice> invoices,
+    DateTime? now,
+  }) {
+    final n = now ?? DateTime.now();
+    final charity = fund?.isCharity ?? false;
+    final rate = fund?.serviceFeeRate ?? AppConstants.defaultServiceFeeRate;
+    final monthTxs = transactions
+        .where(
+          (t) =>
+              t.status == TransactionStatus.approved &&
+              t.occurredAt.year == n.year &&
+              t.occurredAt.month == n.month,
+        )
+        .toList()
+      ..sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
+    final lines = [
+      for (final t in monthTxs)
+        FeeLineItem(tx: t, fee: fees.softwareServiceFee(t.amount, rate, charityZeroFee: charity)),
+    ];
+    final volume = lines.fold<int>(0, (a, b) => a + b.tx.amount);
+    final feeTotal = lines.fold<int>(0, (a, b) => a + b.fee);
+    final invoice = invoices.where((i) => i.year == n.year && i.month == n.month).firstOrNull;
+    return MonthlyFeeSnapshot(
+      year: n.year,
+      month: n.month,
+      rate: rate,
+      charityZeroFee: charity,
+      volume: volume,
+      feeTotal: feeTotal,
+      lines: lines,
+      invoice: invoice,
+    );
+  }
+}
+
+/// محدودیت پلن رایگان و پریمیوم.
+class SubscriptionPolicy {
+  const SubscriptionPolicy();
+
+  bool canAddMember({required bool premium, required int memberCount}) =>
+      premium || memberCount < AppConstants.freeMemberLimit;
+
+  bool canCreateAnotherFund({required bool premium, required int ownedFunds}) =>
+      premium || ownedFunds < AppConstants.freeFundLimit;
+
+  String memberLimitLabel({required bool premium}) =>
+      premium ? 'نامحدود' : 'تا ${AppConstants.freeMemberLimit} عضو';
 }
 
 class InviteCode {

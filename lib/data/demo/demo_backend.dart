@@ -396,9 +396,10 @@ class DemoFundRepository implements FundRepository {
   Future<Result<Fund>> createFund(CreateFundInput input) async {
     final user = store.currentUser;
     if (user == null) return const Err('وارد نشده‌اید');
-    final owned = store.funds.values.where((f) => f.adminId == user.id).length;
-    if (owned >= AppConstants.freeFundLimit) {
-      // still allow in demo as premium-like if they already have; first fund is free
+    final ownedFunds = store.funds.values.where((f) => f.adminId == user.id).toList();
+    final premium = ownedFunds.any((f) => f.isPremium);
+    if (!const SubscriptionPolicy().canCreateAnotherFund(premium: premium, ownedFunds: ownedFunds.length)) {
+      return const Err('پلن رایگان فقط یک صندوق دارد. برای صندوق بیشتر، پریمیوم را فعال کنید.');
     }
     if (input.serviceFeeRate < AppConstants.minServiceFeeRate ||
         input.serviceFeeRate > AppConstants.maxServiceFeeRate) {
@@ -620,6 +621,7 @@ class DemoTransactionRepository implements TransactionRepository {
   }
 
   void _accrueFee(Fund fund, int amount) {
+    if (fund.isCharity) return;
     final now = DateTime.now();
     final list = store.invoices[fund.id] ?? [];
     final existing = list.where((i) => i.year == now.year && i.month == now.month && i.status == InvoiceStatus.accruing);
@@ -883,13 +885,20 @@ class DemoReportRepository implements ReportRepository {
     }
     final inSum = txs.where((t) => t.type != TransactionType.loanDisbursement && t.type != TransactionType.withdrawal).fold<int>(0, (a, b) => a + b.amount);
     final outSum = txs.where((t) => t.type == TransactionType.loanDisbursement || t.type == TransactionType.withdrawal).fold<int>(0, (a, b) => a + b.amount);
+    final fund = store.funds[fundId];
+    final charity = fund?.isCharity ?? false;
+    final rate = fund?.serviceFeeRate ?? 0.005;
+    final fee = const FeeCalculator().accrue(txs.map((t) => t.amount), rate, charityZeroFee: charity);
     return FundReport(
-      balance: store.funds[fundId]?.balance ?? 0,
+      balance: fund?.balance ?? 0,
       totalIn: inSum,
       totalOut: outSum,
       overdueCount: overdue.length,
       overdueAmount: overdue.fold(0, (a, b) => a + b.amount),
       points: grouped.values.toList(),
+      softwareFeeToAdmin: fee,
+      serviceFeeRate: rate,
+      charityZeroFee: charity,
     );
   }
 

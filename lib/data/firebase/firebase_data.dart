@@ -10,6 +10,7 @@ import '../../domain/entities/finance.dart';
 import '../../domain/entities/people.dart';
 import '../../domain/enums.dart';
 import '../../domain/repositories/repositories.dart';
+import '../../domain/services/finance_services.dart';
 import 'firebase_repos.dart';
 
 Map<String, dynamic> _norm(String id, Map<String, dynamic> data) {
@@ -295,6 +296,13 @@ class FirebaseReportRepository implements ReportRepository {
       overdueCount: overdue.length,
       overdueAmount: overdue.fold(0, (a, b) => a + b.amount),
       points: const [],
+      softwareFeeToAdmin: const FeeCalculator().accrue(
+        approved.map((t) => t.amount),
+        (fund.data()?['serviceFeeRate'] as num?)?.toDouble() ?? 0.005,
+        charityZeroFee: fund.data()?['isCharity'] as bool? ?? false,
+      ),
+      serviceFeeRate: (fund.data()?['serviceFeeRate'] as num?)?.toDouble() ?? 0.005,
+      charityZeroFee: fund.data()?['isCharity'] as bool? ?? false,
     );
   }
 

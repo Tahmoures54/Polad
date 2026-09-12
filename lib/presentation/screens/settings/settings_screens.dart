@@ -88,7 +88,6 @@ class FundSettingsScreen extends StatefulWidget {
 class _FundSettingsScreenState extends State<FundSettingsScreen> {
   final share = TextEditingController();
   final charter = TextEditingController();
-  double? fee;
 
   @override
   Widget build(BuildContext context) {
@@ -96,7 +95,6 @@ class _FundSettingsScreenState extends State<FundSettingsScreen> {
     if (fund == null) return const Scaffold(body: LoadingView());
     share.text = share.text.isEmpty ? fund.shareAmount.toString() : share.text;
     charter.text = charter.text.isEmpty ? (fund.charterText ?? '') : charter.text;
-    fee ??= fund.serviceFeeRate;
     return Scaffold(
       appBar: AppBar(title: const Text('تنظیمات صندوق')),
       body: ListView(
@@ -104,10 +102,25 @@ class _FundSettingsScreenState extends State<FundSettingsScreen> {
         children: [
           PersianNumberField(controller: share, label: 'مبلغ سهم (تومان)'),
           const SizedBox(height: 12),
-          Text('نرخ هزینه خدمات نرم‌افزاری مدیر: ${percentFa(fee!)}'),
-          Slider(value: fee!, min: 0.005, max: 0.01, divisions: 5, onChanged: (v) => setState(() => fee = v)),
           TextField(controller: charter, maxLines: 5, decoration: const InputDecoration(labelText: 'اساسنامه')),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.percent, color: AppColors.navy),
+            title: const Text('نرخ کارمزد نرم‌افزار'),
+            subtitle: Text(fund.isCharity ? 'کارمزد صفر (خیریه)' : percentFa(fund.serviceFeeRate)),
+            trailing: const Icon(Icons.chevron_left),
+            onTap: () => context.push('/fee-rate'),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.workspace_premium_outlined, color: AppColors.navy),
+            title: const Text('اشتراک'),
+            subtitle: Text(fund.tier.fa),
+            trailing: const Icon(Icons.chevron_left),
+            onTap: () => context.push('/subscription'),
+          ),
+          const SizedBox(height: 8),
           const Text(
             'کارمزد هرگز از تراکنش عضو کم نمی‌شود. صورتحساب ماهانه برای مدیر صادر می‌گردد.',
             style: TextStyle(color: AppColors.muted, height: 1.7, fontSize: 13),
@@ -117,66 +130,12 @@ class _FundSettingsScreenState extends State<FundSettingsScreen> {
             onPressed: () {
               final amount = Validators.parseAmount(share.text);
               if (amount == null) return;
-              context.read<HomeCubit>().updateFund(fund.copyWith(shareAmount: amount, serviceFeeRate: fee, charterText: charter.text.trim()));
+              context.read<HomeCubit>().updateFund(fund.copyWith(shareAmount: amount, charterText: charter.text.trim()));
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ذخیره شد')));
             },
             child: const Text('ذخیره تنظیمات'),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class BillingScreen extends StatelessWidget {
-  const BillingScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('صورتحساب خدمات')),
-      body: BlocBuilder<HomeCubit, HomeState>(
-        builder: (context, state) {
-          if (state.invoices.isEmpty) {
-            return const EmptyView(title: 'صورتحسابی نیست', subtitle: 'پس از تأیید تراکنش‌ها، هزینه خدمات نرم‌افزاری اینجا جمع می‌شود.');
-          }
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              const Text(
-                'این مبلغ «هزینه خدمات نرم‌افزاری پولاد» است و مطابق بخشنامه شاپرک از عضو صندوق گرفته نمی‌شود.',
-                style: TextStyle(color: AppColors.muted, height: 1.7),
-              ),
-              const SizedBox(height: 12),
-              ...state.invoices.map((i) => Card(
-                    child: ListTile(
-                      title: Text('${faNum(i.year)}/${faNum(i.month.toString().padLeft(2, '0'))}'),
-                      subtitle: Text('حجم ${toman(i.transactionVolume)} • نرخ ${percentFa(i.rate)}\n${i.note}', maxLines: 4),
-                      isThreeLine: true,
-                      trailing: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(toman(i.feeAmount), style: const TextStyle(fontFamily: 'VazirmatnFD', fontWeight: FontWeight.w700)),
-                          StatusChip(
-                            label: i.status == InvoiceStatus.paid ? 'پرداخت شده' : 'جاری',
-                            tone: i.status == InvoiceStatus.paid ? ChipTone.success : ChipTone.warning,
-                          ),
-                        ],
-                      ),
-                      onTap: i.status == InvoiceStatus.paid
-                          ? null
-                          : () async {
-                              await sl<PaymentGateway>().startSoftwareFeePayment(invoiceId: i.id, amountToman: i.feeAmount);
-                              await sl<BillingRepository>().markPaid(i.id);
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('در حالت آزمایشی به‌عنوان پرداخت‌شده ثبت شد. در تولید از بانکیما استفاده می‌شود.')));
-                              }
-                            },
-                    ),
-                  )),
-            ],
-          );
-        },
       ),
     );
   }

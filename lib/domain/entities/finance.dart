@@ -420,6 +420,9 @@ class FundReport extends Equatable {
     required this.overdueCount,
     required this.overdueAmount,
     required this.points,
+    this.softwareFeeToAdmin = 0,
+    this.serviceFeeRate = 0.005,
+    this.charityZeroFee = false,
   });
 
   final int balance;
@@ -429,8 +432,13 @@ class FundReport extends Equatable {
   final int overdueAmount;
   final List<CashflowPoint> points;
 
+  /// هزینه خدمات نرم‌افزاری همان ماه/دوره — بدهی مدیر، نه کسر از اعضا.
+  final int softwareFeeToAdmin;
+  final double serviceFeeRate;
+  final bool charityZeroFee;
+
   @override
-  List<Object?> get props => [balance, totalIn, totalOut, overdueCount];
+  List<Object?> get props => [balance, totalIn, totalOut, overdueCount, softwareFeeToAdmin, charityZeroFee];
 }
 
 class BankSms extends Equatable {

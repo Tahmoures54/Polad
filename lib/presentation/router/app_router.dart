@@ -7,6 +7,7 @@ import '../../core/widgets/app_widgets.dart';
 import '../../data/local/cache_store.dart';
 import '../blocs/app_blocs.dart';
 import '../screens/auth/auth_screens.dart';
+import '../screens/billing/billing_screens.dart';
 import '../screens/draws/draw_screens.dart';
 import '../screens/home/home_screens.dart';
 import '../screens/loans/loan_screens.dart';
@@ -94,6 +95,8 @@ GoRouter createRouter(SessionCubit session) {
       GoRoute(path: '/draw-history', builder: (_, _) => const DrawHistoryScreen()),
       GoRoute(path: '/reports', builder: (_, _) => const ReportsScreen()),
       GoRoute(path: '/billing', builder: (_, _) => const BillingScreen()),
+      GoRoute(path: '/subscription', builder: (_, _) => const SubscriptionScreen()),
+      GoRoute(path: '/fee-rate', builder: (_, _) => const FeeRateScreen()),
       GoRoute(path: '/fund-settings', builder: (_, _) => const FundSettingsScreen()),
       GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
       GoRoute(path: '/sms', builder: (_, _) => const SmsMatchScreen()),

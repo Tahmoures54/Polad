@@ -313,7 +313,9 @@ class MoreScreen extends StatelessWidget {
             ListTile(leading: const Icon(Icons.casino_outlined), title: const Text('قرعه‌کشی'), onTap: () => context.push('/draws')),
             ListTile(leading: const Icon(Icons.history), title: const Text('تاریخچه قرعه‌کشی'), onTap: () => context.push('/draw-history')),
             ListTile(leading: const Icon(Icons.insights_outlined), title: const Text('گزارش‌ها'), onTap: () => context.push('/reports')),
-            ListTile(leading: const Icon(Icons.receipt_long_outlined), title: const Text('صورتحساب خدمات نرم‌افزاری'), onTap: () => context.push('/billing')),
+            ListTile(leading: const Icon(Icons.receipt_long_outlined), title: const Text('صورتحساب کارمزد نرم‌افزار'), onTap: () => context.push('/billing')),
+            ListTile(leading: const Icon(Icons.workspace_premium_outlined), title: const Text('اشتراک'), onTap: () => context.push('/subscription')),
+            ListTile(leading: const Icon(Icons.percent), title: const Text('نرخ کارمزد'), onTap: () => context.push('/fee-rate')),
             ListTile(leading: const Icon(Icons.tune), title: const Text('تنظیمات صندوق'), onTap: () => context.push('/fund-settings')),
             ListTile(leading: const Icon(Icons.sms_outlined), title: const Text('تطبیق پیامک بانکی'), onTap: () => context.push('/sms')),
           ] else ...[

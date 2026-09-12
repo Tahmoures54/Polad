@@ -6,12 +6,14 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:rxdart/rxdart.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/di/locator.dart';
 import '../../../data/services/notification_service.dart';
 import '../../../domain/entities/finance.dart';
 import '../../../domain/entities/people.dart';
 import '../../../domain/enums.dart';
 import '../../../domain/repositories/repositories.dart';
+import '../../../domain/services/finance_services.dart';
 
 class SessionState extends Equatable {
   const SessionState({
@@ -106,6 +108,8 @@ class HomeState extends Equatable {
       transactions.where((t) => t.memberId == me?.userId).toList();
   List<Loan> get requestedLoans => loans.where((l) => l.status == LoanStatus.requested).toList();
   List<Loan> get myLoans => loans.where((l) => l.memberId == me?.userId).toList();
+  List<ServiceInvoice> get unpaidInvoices =>
+      invoices.where((i) => i.status != InvoiceStatus.paid && i.feeAmount > 0).toList();
   int get activeLoans => loans.where((l) => l.status == LoanStatus.active).length;
   int get overdueCount => installments.where((i) => i.status == InstallmentStatus.overdue).length;
 
@@ -272,6 +276,69 @@ class HomeCubit extends Cubit<HomeState> {
       (f) => emit(state.copyWith(message: f.message)),
       (_) => emit(state.copyWith(message: 'یادآوری برای $name ارسال شد')),
     );
+  }
+
+  Future<void> paySoftwareFee(ServiceInvoice invoice) async {
+    if (state.fund?.isCharity == true || invoice.feeAmount == 0) {
+      emit(state.copyWith(message: 'صندوق خیریه کارمزد صفر دارد و پرداختی لازم نیست'));
+      return;
+    }
+    final pay = await sl<PaymentGateway>().startSoftwareFeePayment(
+      invoiceId: invoice.id,
+      amountToman: invoice.feeAmount,
+    );
+    await pay.when(
+      ok: (_) async {
+        final r = await _billing.markPaid(invoice.id);
+        r.when(
+          ok: (_) => emit(state.copyWith(message: 'هزینه خدمات نرم‌افزاری پرداخت شد')),
+          err: (m) => emit(state.copyWith(message: m)),
+        );
+      },
+      err: (m) async => emit(state.copyWith(message: m)),
+    );
+  }
+
+  Future<void> remindSoftwareFee() async {
+    final snap = const RevenueService().forMonth(
+      fund: state.fund,
+      transactions: state.transactions,
+      invoices: state.invoices,
+    );
+    if (snap.charityZeroFee) {
+      emit(state.copyWith(message: 'صندوق خیریه کارمزد صفر است'));
+      return;
+    }
+    if (!snap.needsPayment) {
+      emit(state.copyWith(message: 'صورتحساب معوقی نیست'));
+      return;
+    }
+    final r = await sl<NotificationService>().showLocal(
+      title: 'یادآوری هزینه خدمات نرم‌افزاری',
+      body: 'جمع این ماه ${snap.feeTotal} تومان است و طبق شاپرک از عضو کسر نشده. لطفاً تسویه کنید.',
+    );
+    r.fold(
+      (f) => emit(state.copyWith(message: f.message)),
+      (_) => emit(state.copyWith(message: 'یادآوری پرداخت کارمزد ارسال شد')),
+    );
+  }
+
+  Future<void> saveServiceFee({required double rate, required bool charity}) async {
+    final fund = state.fund;
+    if (fund == null) return;
+    if (!charity &&
+        (rate < AppConstants.minServiceFeeRate || rate > AppConstants.maxServiceFeeRate)) {
+      emit(state.copyWith(message: 'نرخ باید بین ۰٫۵٪ تا ۱٪ باشد'));
+      return;
+    }
+    await updateFund(fund.copyWith(serviceFeeRate: rate, isCharity: charity));
+  }
+
+  Future<void> upgradePremium() async {
+    final fund = state.fund;
+    if (fund == null) return;
+    final r = await _funds.updateFund(fund.copyWith(tier: SubscriptionTier.premium));
+    r.when(ok: (_) => emit(state.copyWith(message: 'پلن پریمیوم فعال شد')), err: (m) => emit(state.copyWith(message: m)));
   }
 
   void clearMessage() => emit(state.copyWith(clearMessage: true));

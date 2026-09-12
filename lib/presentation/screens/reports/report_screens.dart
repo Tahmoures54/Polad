@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/di/locator.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/app_widgets.dart';
 import '../../../domain/entities/finance.dart';
 import '../../../domain/repositories/repositories.dart';
@@ -50,6 +51,20 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 ]),
                 const SizedBox(height: 8),
                 SummaryCard(title: 'معوقات', value: r.overdueAmount, subtitle: '${faNum(r.overdueCount)} قسط', color: AppColors.warning),
+                const SectionHeader('کارمزد نرم‌افزار (بدهی مدیر)'),
+                Text(
+                  r.charityZeroFee
+                      ? 'این صندوق خیریه است و کارمزد نرم‌افزار صفر است. از عضو چیزی کم نشده.'
+                      : 'نرخ ${percentFa(r.serviceFeeRate)} فقط از مدیر دریافت می‌شود؛ طبق شاپرک از واریز عضو کسر نمی‌گردد.',
+                  style: const TextStyle(color: AppColors.muted, height: 1.6),
+                ),
+                const SizedBox(height: 8),
+                SummaryCard(
+                  title: r.charityZeroFee ? 'کارمزد خیریه' : 'صورتحساب مدیر',
+                  value: r.softwareFeeToAdmin,
+                  color: AppColors.gold,
+                  subtitle: 'از عضو: ۰ تومان',
+                ),
                 const SectionHeader('جریان نقدی'),
                 SizedBox(
                   height: 220,

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:polad/data/sms/bank_sms_parser.dart';
 import 'package:polad/domain/entities/finance.dart';
+import 'package:polad/domain/entities/people.dart';
 import 'package:polad/domain/enums.dart';
 import 'package:polad/domain/services/finance_services.dart';
 
@@ -48,6 +49,62 @@ void main() {
     test('rejects rates outside 0.5%–1%', () {
       expect(() => fees.softwareServiceFee(1000, 0.004), throwsArgumentError);
       expect(() => fees.softwareServiceFee(1000, 0.011), throwsArgumentError);
+    });
+
+    test('charity zero-fee bills admin nothing and leaves member amount intact', () {
+      const memberPayment = 5000000;
+      final fee = fees.softwareServiceFee(memberPayment, 0.01, charityZeroFee: true);
+      expect(fee, 0);
+      expect(memberPayment, 5000000);
+    });
+  });
+
+  group('RevenueService', () {
+    const revenue = RevenueService();
+
+    test('builds monthly lines at 0.5% for admin only', () {
+      final tx = MoneyTransaction(
+        id: 't1',
+        fundId: 'f1',
+        memberId: 'u1',
+        memberName: 'علی',
+        type: TransactionType.sharePayment,
+        amount: 10000000,
+        status: TransactionStatus.approved,
+        occurredAt: DateTime(2026, 9, 2),
+        submittedAt: DateTime(2026, 9, 2),
+      );
+      final snap = revenue.forMonth(
+        fund: Fund(
+          id: 'f1',
+          name: 'پولاد',
+          inviteCode: 'POLAD1',
+          adminId: 'a1',
+          shareAmount: 5000000,
+          paymentPeriodDays: 30,
+          serviceFeeRate: 0.005,
+          loanAdminFeeRate: 0.02,
+          createdAt: DateTime(2026, 1, 1),
+          tier: SubscriptionTier.free,
+        ),
+        transactions: [tx],
+        invoices: const [],
+        now: DateTime(2026, 9, 12),
+      );
+      expect(snap.feeTotal, 50000);
+      expect(snap.lines.single.fee, 50000);
+      expect(snap.needsPayment, isTrue);
+    });
+  });
+
+  group('SubscriptionPolicy', () {
+    const policy = SubscriptionPolicy();
+
+    test('free plan caps members at 10 and funds at 1', () {
+      expect(policy.canAddMember(premium: false, memberCount: 10), isFalse);
+      expect(policy.canAddMember(premium: true, memberCount: 11), isTrue);
+      expect(policy.canCreateAnotherFund(premium: false, ownedFunds: 1), isFalse);
+      expect(policy.canCreateAnotherFund(premium: true, ownedFunds: 3), isTrue);
     });
   });
 

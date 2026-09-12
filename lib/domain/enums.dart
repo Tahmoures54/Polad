@@ -107,3 +107,16 @@ extension DrawSelectionModeX on DrawSelectionMode {
     DrawSelectionMode.manual => 'انتخاب دستی مدیر',
   };
 }
+
+extension InvoiceStatusX on InvoiceStatus {
+  String get fa => switch (this) {
+    InvoiceStatus.accruing => 'در حال جمع‌آوری',
+    InvoiceStatus.issued => 'صادر شده',
+    InvoiceStatus.paid => 'پرداخت‌شده',
+    InvoiceStatus.overdue => 'معوق',
+  };
+}
+
+extension SubscriptionTierX on SubscriptionTier {
+  String get fa => this == SubscriptionTier.premium ? 'پریمیوم' : 'رایگان';
+}
