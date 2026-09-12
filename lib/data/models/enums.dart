@@ -24,6 +24,12 @@ enum UserRole {
 
   /// آیا این نقش فقط عضو عادی است؟
   bool get isMember => this == UserRole.member;
+
+  /// مقدار ذخیره‌شده در Firestore / Custom Claims.
+  String get firestoreValue => switch (this) {
+    UserRole.admin => 'admin',
+    UserRole.member => 'member',
+  };
 }
 
 /// نوع دوره پرداخت سهم صندوق.
@@ -46,6 +52,13 @@ enum FundPeriodType {
     FundPeriodType.weekly => 'هفتگی',
     FundPeriodType.monthly => 'ماهانه',
     FundPeriodType.custom => 'سفارشی',
+  };
+
+  /// مقدار ذخیره‌شده در Firestore.
+  String get firestoreValue => switch (this) {
+    FundPeriodType.weekly => 'weekly',
+    FundPeriodType.monthly => 'monthly',
+    FundPeriodType.custom => 'custom',
   };
 }
 
@@ -76,6 +89,13 @@ enum TransactionStatus {
 
   /// تصمیم نهایی گرفته شده (تأیید یا رد).
   bool get isFinal => this != TransactionStatus.pendingApproval;
+
+  /// مقدار ذخیره‌شده در Firestore (`pending_approval` نه `pending`).
+  String get firestoreValue => switch (this) {
+    TransactionStatus.pendingApproval => 'pending_approval',
+    TransactionStatus.approved => 'approved',
+    TransactionStatus.rejected => 'rejected',
+  };
 }
 
 /// ماهیت مالی تراکنش.
@@ -110,6 +130,14 @@ enum TransactionType {
 
   /// آیا این نوع، خروج پول از صندوق است؟
   bool get isOutflow => this == TransactionType.loan || this == TransactionType.withdrawal;
+
+  /// مقدار ذخیره‌شده در Firestore.
+  String get firestoreValue => switch (this) {
+    TransactionType.installment => 'installment',
+    TransactionType.loan => 'loan',
+    TransactionType.withdrawal => 'withdrawal',
+    TransactionType.fee => 'fee',
+  };
 }
 
 /// وضعیت درخواست و چرخه عمر وام قرض‌الحسنه.
@@ -149,6 +177,15 @@ enum LoanStatus {
 
   /// آیا وام در حال بازپرداخت است؟
   bool get isOngoing => this == LoanStatus.active;
+
+  /// مقدار ذخیره‌شده در Firestore.
+  String get firestoreValue => switch (this) {
+    LoanStatus.pending => 'pending',
+    LoanStatus.approved => 'approved',
+    LoanStatus.rejected => 'rejected',
+    LoanStatus.active => 'active',
+    LoanStatus.completed => 'completed',
+  };
 }
 
 /// وضعیت یک قسط نسبت به سررسید و پرداخت.
@@ -175,6 +212,13 @@ enum InstallmentStatus {
 
   /// آیا این قسط هنوز بدهی باز است؟
   bool get isOpen => this != InstallmentStatus.paid;
+
+  /// مقدار ذخیره‌شده در Firestore.
+  String get firestoreValue => switch (this) {
+    InstallmentStatus.pending => 'pending',
+    InstallmentStatus.paid => 'paid',
+    InstallmentStatus.overdue => 'overdue',
+  };
 }
 
 /// روش انتخاب برنده قرعه‌کشی.
@@ -195,6 +239,12 @@ enum DrawMethod {
   };
 
   bool get isRandom => this == DrawMethod.random;
+
+  /// مقدار ذخیره‌شده در Firestore.
+  String get firestoreValue => switch (this) {
+    DrawMethod.random => 'random',
+    DrawMethod.manual => 'manual',
+  };
 }
 
 /// وضعیت پرداخت صورتحساب هزینه خدمات نرم‌افزاری (بدهی مدیر، نه عضو).
@@ -215,4 +265,10 @@ enum FeeStatus {
   };
 
   bool get isPaid => this == FeeStatus.paid;
+
+  /// مقدار ذخیره‌شده در Firestore.
+  String get firestoreValue => switch (this) {
+    FeeStatus.pending => 'pending',
+    FeeStatus.paid => 'paid',
+  };
 }

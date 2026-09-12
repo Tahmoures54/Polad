@@ -28,8 +28,10 @@ class CollectionPaths {
   static const installments = 'installments';
   static const draws = 'draws';
   static const invoices = 'service_invoices';
+  static const fees = 'fees';
   static const payments = 'payment_orders';
   static const notifications = 'notifications';
+  static const receiptsPrefix = 'receipts';
 
   static String fundMembers(String fundId) => 'funds/$fundId/members';
   static String fundInvites(String fundId) => 'funds/$fundId/invites';

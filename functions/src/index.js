@@ -8,6 +8,7 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require("firebase-admin/app");
+const { getAuth } = require("firebase-admin/auth");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const axios = require("axios");
@@ -406,6 +407,23 @@ exports.startBankimaPayment = onCall(async (req) => {
     await orderRef.update({ status: "failed", error: String(e.message || e) });
     throw new HttpsError("unavailable", "ارتباط با بانکیما برقرار نشد");
   }
+});
+
+/** Custom Claims فقط با Admin SDK تنظیم می‌شود؛ کلاینت این Callable را صدا می‌زند. */
+exports.setCustomClaims = onCall(async (req) => {
+  const uid = assertAuth(req);
+  const { targetUid, role, fundId } = req.data || {};
+  if (!targetUid || !role) throw new HttpsError("invalid-argument", "uid و نقش لازم است");
+  if (role !== "admin" && role !== "member") {
+    throw new HttpsError("invalid-argument", "نقش نامعتبر است");
+  }
+  if (fundId) {
+    await assertAdmin(fundId, uid);
+  } else if (uid !== targetUid) {
+    throw new HttpsError("permission-denied", "فقط مدیر صندوق می‌تواند نقش دیگران را تنظیم کند");
+  }
+  await getAuth().setCustomUserClaims(targetUid, { role, fundId: fundId || null });
+  return { ok: true };
 });
 
 exports.verifyBankimaPayment = onCall(async (req) => {
