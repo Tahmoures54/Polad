@@ -56,9 +56,16 @@ class MemberStatCard extends StatelessWidget {
 
 /// کارت قسط قابل کلیک با رنگ وضعیت.
 class MemberInstallmentCard extends StatelessWidget {
-  const MemberInstallmentCard({super.key, required this.item});
+  const MemberInstallmentCard({
+    super.key,
+    required this.item,
+    this.memberName,
+    this.onRemind,
+  });
 
   final Installment item;
+  final String? memberName;
+  final VoidCallback? onRemind;
 
   String get _statusLabel => switch (item.status) {
         InstallmentStatus.paid => 'پرداخت‌شده',
@@ -99,7 +106,10 @@ class MemberInstallmentCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('قسط ${faNum(item.sequence)}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Text(
+                      memberName == null ? 'قسط ${faNum(item.sequence)}' : '$memberName — قسط ${faNum(item.sequence)}',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       'سررسید ${jalaliDate(item.dueDate)}',
@@ -119,6 +129,14 @@ class MemberInstallmentCard extends StatelessWidget {
                   StatusChip(label: _statusLabel, tone: _tone),
                 ],
               ),
+              if (onRemind != null && !paid) ...[
+                const SizedBox(width: 4),
+                IconButton(
+                  tooltip: 'یادآوری دستی',
+                  onPressed: onRemind,
+                  icon: const Icon(Icons.notifications_active_outlined, color: AppColors.navy),
+                ),
+              ],
             ],
           ),
         ),

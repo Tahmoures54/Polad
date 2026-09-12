@@ -105,6 +105,7 @@ class AdminDashboard extends StatelessWidget {
                   children: [
                     _Quick('اعضا', Icons.person_add_alt, () => context.go('/members')),
                     _Quick('وام‌ها', Icons.handshake_outlined, () => context.push('/loans')),
+                    _Quick('اقساط', Icons.event_note_outlined, () => context.push('/installments-admin')),
                     _Quick('قرعه‌کشی', Icons.casino_outlined, () => context.push('/draws')),
                     _Quick('گزارش', Icons.insights_outlined, () => context.push('/reports')),
                   ],
@@ -307,12 +308,18 @@ class MoreScreen extends StatelessWidget {
       body: ListView(
         children: [
           if (admin) ...[
-            ListTile(leading: const Icon(Icons.handshake_outlined), title: const Text('وام و اقساط'), onTap: () => context.push('/loans')),
+            ListTile(leading: const Icon(Icons.handshake_outlined), title: const Text('مدیریت وام'), onTap: () => context.push('/loans')),
+            ListTile(leading: const Icon(Icons.event_note_outlined), title: const Text('پیگیری اقساط'), onTap: () => context.push('/installments-admin')),
             ListTile(leading: const Icon(Icons.casino_outlined), title: const Text('قرعه‌کشی'), onTap: () => context.push('/draws')),
+            ListTile(leading: const Icon(Icons.history), title: const Text('تاریخچه قرعه‌کشی'), onTap: () => context.push('/draw-history')),
             ListTile(leading: const Icon(Icons.insights_outlined), title: const Text('گزارش‌ها'), onTap: () => context.push('/reports')),
             ListTile(leading: const Icon(Icons.receipt_long_outlined), title: const Text('صورتحساب خدمات نرم‌افزاری'), onTap: () => context.push('/billing')),
             ListTile(leading: const Icon(Icons.tune), title: const Text('تنظیمات صندوق'), onTap: () => context.push('/fund-settings')),
             ListTile(leading: const Icon(Icons.sms_outlined), title: const Text('تطبیق پیامک بانکی'), onTap: () => context.push('/sms')),
+          ] else ...[
+            ListTile(leading: const Icon(Icons.handshake_outlined), title: const Text('وام‌های من'), onTap: () => context.push('/loans')),
+            ListTile(leading: const Icon(Icons.add), title: const Text('درخواست وام'), onTap: () => context.push('/loan-request')),
+            ListTile(leading: const Icon(Icons.history), title: const Text('تاریخچه قرعه‌کشی'), onTap: () => context.push('/draw-history')),
           ],
           ListTile(leading: const Icon(Icons.person_outline), title: const Text('پروفایل'), onTap: () => context.push('/profile')),
           ListTile(
@@ -343,6 +350,7 @@ class InstallmentsScreen extends StatelessWidget {
       body: BlocBuilder<HomeCubit, HomeState>(
         builder: (context, state) {
           final items = [...state.myInstallments]..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+          final overdue = items.where((i) => i.status == InstallmentStatus.overdue).length;
           return RefreshIndicator(
             color: AppColors.navy,
             onRefresh: () => context.read<HomeCubit>().refresh(),
@@ -361,14 +369,22 @@ class InstallmentsScreen extends StatelessWidget {
                 : ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(16),
-                    children: items
-                        .map(
-                          (i) => Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: MemberInstallmentCard(item: i),
+                    children: [
+                      if (overdue > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            '${faNum(overdue)} قسط معوق دارید؛ ابتدا آن‌ها را تسویه کنید.',
+                            style: const TextStyle(color: AppColors.danger, height: 1.6),
                           ),
-                        )
-                        .toList(),
+                        ),
+                      ...items.map(
+                        (i) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: MemberInstallmentCard(item: i),
+                        ),
+                      ),
+                    ],
                   ),
           );
         },

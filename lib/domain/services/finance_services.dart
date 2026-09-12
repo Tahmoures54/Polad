@@ -2,8 +2,8 @@ import 'dart:math';
 
 import '../enums.dart';
 
-/// Qardh-hasanah schedule: principal is split evenly.
-/// The 2% figure is the fund's operational/admin cost — not bank interest (riba).
+/// جدول بازپرداخت قرض‌الحسنه: اصل وام به‌صورت مساوی بین اقساط تقسیم می‌شود.
+/// رقم ۲٪ هزینهٔ اداری صندوق است، نه بهره بانکی (ربا).
 class InstallmentPlan {
   const InstallmentPlan({
     required this.principal,
@@ -37,6 +37,7 @@ class InstallmentDraft {
 class InstallmentCalculator {
   const InstallmentCalculator();
 
+  /// [feeRate] پیش‌فرض ۲٪ طبق رویه صندوق؛ روی هر قسط سرشکن می‌شود.
   InstallmentPlan plan({
     required int principal,
     required int termMonths,

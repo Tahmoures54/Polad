@@ -7,6 +7,7 @@ import '../../core/widgets/app_widgets.dart';
 import '../../data/local/cache_store.dart';
 import '../blocs/app_blocs.dart';
 import '../screens/auth/auth_screens.dart';
+import '../screens/draws/draw_screens.dart';
 import '../screens/home/home_screens.dart';
 import '../screens/loans/loan_screens.dart';
 import '../screens/reports/report_screens.dart';
@@ -85,8 +86,12 @@ GoRouter createRouter(SessionCubit session) {
       GoRoute(path: '/more', builder: (_, _) => const _Authed(index: 3, child: MoreScreen())),
       GoRoute(path: '/loans', builder: (_, _) => const LoansScreen()),
       GoRoute(path: '/loan-request', builder: (_, _) => const LoanRequestScreen()),
+      GoRoute(path: '/loan-detail', builder: (_, state) => LoanDetailScreen(loanId: state.extra as String? ?? '')),
+      GoRoute(path: '/installments-admin', builder: (_, _) => const AdminInstallmentsScreen()),
       GoRoute(path: '/draws', builder: (_, _) => const DrawsScreen()),
+      GoRoute(path: '/draw-create', builder: (_, _) => const DrawCreateScreen()),
       GoRoute(path: '/draw-run', builder: (_, state) => DrawRunScreen(drawId: state.extra as String? ?? '')),
+      GoRoute(path: '/draw-history', builder: (_, _) => const DrawHistoryScreen()),
       GoRoute(path: '/reports', builder: (_, _) => const ReportsScreen()),
       GoRoute(path: '/billing', builder: (_, _) => const BillingScreen()),
       GoRoute(path: '/fund-settings', builder: (_, _) => const FundSettingsScreen()),

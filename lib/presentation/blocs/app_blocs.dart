@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../../../core/di/locator.dart';
+import '../../../data/services/notification_service.dart';
 import '../../../domain/entities/finance.dart';
 import '../../../domain/entities/people.dart';
 import '../../../domain/enums.dart';
@@ -104,6 +105,7 @@ class HomeState extends Equatable {
   List<MoneyTransaction> get myTransactions =>
       transactions.where((t) => t.memberId == me?.userId).toList();
   List<Loan> get requestedLoans => loans.where((l) => l.status == LoanStatus.requested).toList();
+  List<Loan> get myLoans => loans.where((l) => l.memberId == me?.userId).toList();
   int get activeLoans => loans.where((l) => l.status == LoanStatus.active).length;
   int get overdueCount => installments.where((i) => i.status == InstallmentStatus.overdue).length;
 
@@ -238,16 +240,38 @@ class HomeCubit extends Cubit<HomeState> {
     r.when(ok: (d) => emit(state.copyWith(message: 'برنده: ${d.winnerName}')), err: (m) => emit(state.copyWith(message: m)));
   }
 
-  Future<void> createDraw({required String title, required int prize}) async {
+  Future<void> createDraw({
+    required String title,
+    required int prize,
+    DateTime? start,
+    DateTime? end,
+    DrawSelectionMode mode = DrawSelectionMode.random,
+  }) async {
     final now = DateTime.now();
     final r = await sl<DrawRepository>().create(
       title: title,
-      start: now,
-      end: now.add(const Duration(days: 30)),
+      start: start ?? now,
+      end: end ?? now.add(const Duration(days: 30)),
       prizeAmount: prize,
-      mode: DrawSelectionMode.random,
+      mode: mode,
     );
     r.when(ok: (_) => emit(state.copyWith(message: 'دوره قرعه‌کشی ساخته شد')), err: (m) => emit(state.copyWith(message: m)));
+  }
+
+  /// یادآوری دستی قسط برای عضو (اعلان محلی؛ تأیید خودکار نیست).
+  Future<void> remindInstallment(Installment inst) async {
+    final member = state.members.where((m) => m.userId == inst.memberId).firstOrNull;
+    final name = member?.displayName ?? 'عضو';
+    final body =
+        '$name عزیز، قسط ${inst.sequence} به مبلغ ${inst.amount} تومان تا سررسید نزدیک است.';
+    final r = await sl<NotificationService>().showLocal(
+      title: 'یادآوری قسط صندوق پولاد',
+      body: body,
+    );
+    r.fold(
+      (f) => emit(state.copyWith(message: f.message)),
+      (_) => emit(state.copyWith(message: 'یادآوری برای $name ارسال شد')),
+    );
   }
 
   void clearMessage() => emit(state.copyWith(clearMessage: true));

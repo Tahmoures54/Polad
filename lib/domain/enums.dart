@@ -91,3 +91,19 @@ extension InstallmentStatusX on InstallmentStatus {
     InstallmentStatus.overdue => 'معوق',
   };
 }
+
+extension DrawStatusX on DrawStatus {
+  String get fa => switch (this) {
+    DrawStatus.scheduled => 'زمان‌بندی‌شده',
+    DrawStatus.ready => 'آماده قرعه',
+    DrawStatus.completed => 'انجام‌شده',
+    DrawStatus.cancelled => 'لغو شده',
+  };
+}
+
+extension DrawSelectionModeX on DrawSelectionMode {
+  String get fa => switch (this) {
+    DrawSelectionMode.random => 'تصادفی',
+    DrawSelectionMode.manual => 'انتخاب دستی مدیر',
+  };
+}
