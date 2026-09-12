@@ -7,12 +7,16 @@ presentation (Cubit + GoRouter + RTL screens)
         ↓
 domain (entities, eligibility, installment & fee math)
         ↓
-data (DemoStore | Firebase + Cloud Functions)
+data (Freezed models + DemoStore | Firebase + Cloud Functions)
         ↓
 local cache (Hive JSON) + session (shared_preferences)
 ```
 
 Online-first: هر repository اول شبکه/منبع زنده را می‌خواند و نتیجه را در Hive می‌نویسد. اگر شبکه قطع باشد، آخرین کش با بنر زرد نمایش داده می‌شود — اپ آفلاین-اول نیست و صف عملیات مالی آفلاین ندارد.
+
+## مدل‌های Firestore
+
+قرارداد داده در `lib/data/models/` با Freezed و json_serializable تعریف شده است (`User`, `Fund`, `Transaction`, `Loan`, `Installment`, `Draw`, `Fee`). تبدیل سند با extensionهای `DocumentSnapshot.toUser()` / `model.toFirestore()` انجام می‌شود. Enum وضعیت‌ها مقدار سیم (`pending_approval` و مشابه) و `displayName` فارسی دارند.
 
 ## نقش‌ها
 
