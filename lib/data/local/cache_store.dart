@@ -35,4 +35,10 @@ class CacheStore {
   bool get onboardingDone => prefs.getBool(AppConstants.prefsOnboarding) ?? false;
 
   Future<void> setOnboardingDone() => prefs.setBool(AppConstants.prefsOnboarding, true);
+
+  /// نقش انتخاب‌شده در راه‌اندازی پروفایل (`admin` یا `member`).
+  String? get intendedRole => prefs.getString(AppConstants.prefsIntendedRole);
+
+  Future<void> setIntendedRole(String role) =>
+      prefs.setString(AppConstants.prefsIntendedRole, role);
 }

@@ -25,6 +25,7 @@ class SessionState extends Equatable {
 
   bool get authenticated => user != null;
   bool get hasFund => user?.activeFundId != null && (user?.fundIds.isNotEmpty ?? false);
+  bool get needsProfile => user?.needsProfile ?? false;
 
   SessionState copyWith({bool? booting, UserProfile? user, bool? online, bool clearUser = false}) {
     return SessionState(
@@ -56,69 +57,15 @@ class SessionCubit extends Cubit<SessionState> {
 
   Future<void> signOut() => _auth.signOut();
 
+  /// همگام‌سازی فوری پس از به‌روزرسانی پروفایل (وقتی استریم Auth دوباره شلیک نمی‌کند).
+  void reload() => emit(state.copyWith(booting: false, user: _auth.currentUser));
+
   @override
   Future<void> close() async {
     for (final s in _subs) {
       await s.cancel();
     }
     return super.close();
-  }
-}
-
-class AuthFormState extends Equatable {
-  const AuthFormState({
-    this.busy = false,
-    this.codeSent = false,
-    this.error,
-    this.phone = '',
-  });
-  final bool busy;
-  final bool codeSent;
-  final String? error;
-  final String phone;
-
-  AuthFormState copyWith({bool? busy, bool? codeSent, String? error, String? phone, bool clearError = false}) {
-    return AuthFormState(
-      busy: busy ?? this.busy,
-      codeSent: codeSent ?? this.codeSent,
-      error: clearError ? null : (error ?? this.error),
-      phone: phone ?? this.phone,
-    );
-  }
-
-  @override
-  List<Object?> get props => [busy, codeSent, error, phone];
-}
-
-class AuthCubit extends Cubit<AuthFormState> {
-  AuthCubit({AuthRepository? auth})
-      : _auth = auth ?? sl<AuthRepository>(),
-        super(const AuthFormState());
-
-  final AuthRepository _auth;
-
-  Future<void> sendOtp(String phone) async {
-    emit(state.copyWith(busy: true, phone: phone, clearError: true));
-    final res = await _auth.sendOtp(phone);
-    res.when(
-      ok: (_) => emit(state.copyWith(busy: false, codeSent: true)),
-      err: (m) => emit(state.copyWith(busy: false, error: m)),
-    );
-  }
-
-  Future<bool> verify(String code, {String? name}) async {
-    emit(state.copyWith(busy: true, clearError: true));
-    final res = await _auth.verifyOtp(phone: state.phone, smsCode: code, displayName: name);
-    return res.when(
-      ok: (_) {
-        emit(state.copyWith(busy: false));
-        return true;
-      },
-      err: (m) {
-        emit(state.copyWith(busy: false, error: m));
-        return false;
-      },
-    );
   }
 }
 

@@ -102,6 +102,7 @@ class FirebaseAuthRepository implements AuthRepository {
     final user = _auth.currentUser;
     if (user == null) return const Err('وارد نشده‌اید');
     await _db.collection(CollectionPaths.users).doc(user.uid).update({'displayName': displayName});
+    _cached = _cached?.copyWith(displayName: displayName);
     return const Ok(null);
   }
 

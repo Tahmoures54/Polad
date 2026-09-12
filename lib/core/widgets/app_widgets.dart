@@ -17,6 +17,10 @@ class PoladLogo extends StatelessWidget {
         width: size,
         height: size,
         fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => ColoredBox(
+          color: AppColors.navy,
+          child: Icon(Icons.shield_outlined, color: AppColors.gold, size: size * 0.55),
+        ),
       ),
     );
   }

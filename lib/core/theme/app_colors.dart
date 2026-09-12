@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-/// Warm paper + navy + gold. High contrast, no decorative noise.
+/// برند پولاد: نیلی [#1A237E] و طلایی [#FFD700] روی زمینهٔ کاغذی گرم.
 class AppColors {
-  static const navy = Color(0xFF0B3A5B);
-  static const navyDark = Color(0xFF072A42);
-  static const navySoft = Color(0xFF164866);
-  static const gold = Color(0xFFC9A227);
-  static const goldLight = Color(0xFFE8C547);
+  static const navy = Color(0xFF1A237E);
+  static const navyDark = Color(0xFF0D1558);
+  static const navySoft = Color(0xFF283593);
+  static const gold = Color(0xFFFFD700);
+  static const goldLight = Color(0xFFFFE44D);
   static const bg = Color(0xFFF6F3EC);
   static const surface = Color(0xFFFFFFFF);
   static const mutedSurface = Color(0xFFEEE8DC);

@@ -16,6 +16,14 @@ class Validators {
     return null;
   }
 
+  /// نام نمایشی کاربر (حداقل دو نویسهٔ معنادار).
+  static String? personName(String? value) {
+    final v = (value ?? '').trim();
+    if (v.isEmpty) return 'نام را وارد کنید';
+    if (v.length < 2) return 'نام خیلی کوتاه است';
+    return null;
+  }
+
   static String? requiredText(String? value, {String label = 'این مقدار'}) {
     if ((value ?? '').trim().isEmpty) return '$label را وارد کنید';
     return null;

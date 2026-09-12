@@ -23,6 +23,12 @@ class UserProfile extends Equatable {
   final String? activeFundId;
   final String? fcmToken;
 
+  /// پروفایل ناقص است و باید نام واقعی وارد شود.
+  bool get needsProfile {
+    final n = displayName.trim();
+    return n.isEmpty || n == 'کاربر جدید' || n == 'کاربر پولاد';
+  }
+
   UserProfile copyWith({
     String? displayName,
     String? avatarUrl,

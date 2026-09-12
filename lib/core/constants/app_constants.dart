@@ -18,6 +18,8 @@ class AppConstants {
   static const prefsOnboarding = 'onboarding_done';
   static const prefsActiveFund = 'active_fund_id';
   static const prefsSessionUser = 'session_user_id';
+  static const prefsIntendedRole = 'intended_role';
+  static const otpResendSeconds = 60;
 }
 
 class CollectionPaths {

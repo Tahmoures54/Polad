@@ -7,7 +7,6 @@ import '../../core/widgets/app_widgets.dart';
 import '../../data/local/cache_store.dart';
 import '../blocs/app_blocs.dart';
 import '../screens/auth/auth_screens.dart';
-import '../screens/auth/fund_setup_screen.dart';
 import '../screens/home/home_screens.dart';
 import '../screens/loans/loan_screens.dart';
 import '../screens/reports/report_screens.dart';
@@ -29,11 +28,29 @@ GoRouter createRouter(SessionCubit session) {
       if (!onboarding && loc != '/onboarding' && loc != '/') {
         return '/onboarding';
       }
-      if (!s.authenticated && loc != '/login' && loc != '/onboarding' && loc != '/') {
+      if (!s.authenticated &&
+          loc != '/login' &&
+          loc != '/otp' &&
+          loc != '/onboarding' &&
+          loc != '/') {
         return '/login';
       }
-      if (s.authenticated && loc == '/login') return '/boot';
-      if (s.authenticated && !s.hasFund && loc != '/setup' && loc != '/boot' && loc != '/') {
+      if (s.authenticated && (loc == '/login' || loc == '/otp')) {
+        return s.needsProfile ? '/profile-setup' : '/boot';
+      }
+      if (s.authenticated &&
+          s.needsProfile &&
+          loc != '/profile-setup' &&
+          loc != '/boot' &&
+          loc != '/') {
+        return '/profile-setup';
+      }
+      if (s.authenticated &&
+          !s.needsProfile &&
+          !s.hasFund &&
+          loc != '/setup' &&
+          loc != '/boot' &&
+          loc != '/') {
         return '/setup';
       }
       return null;
@@ -42,6 +59,19 @@ GoRouter createRouter(SessionCubit session) {
       GoRoute(path: '/', builder: (_, _) => const SplashScreen()),
       GoRoute(path: '/onboarding', builder: (_, _) => const OnboardingScreen()),
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
+      GoRoute(
+        path: '/otp',
+        builder: (_, state) {
+          final extra = state.extra;
+          final phone = extra is String
+              ? extra
+              : extra is Map
+                  ? extra['phone']?.toString() ?? ''
+                  : '';
+          return OtpScreen(phone: phone);
+        },
+      ),
+      GoRoute(path: '/profile-setup', builder: (_, _) => const ProfileSetupScreen()),
       GoRoute(path: '/setup', builder: (_, _) => const FundSetupScreen()),
       GoRoute(path: '/boot', builder: (_, _) => const _BootScreen()),
       GoRoute(

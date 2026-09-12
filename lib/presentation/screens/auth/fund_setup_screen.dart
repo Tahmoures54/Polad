@@ -6,6 +6,7 @@ import '../../../core/di/locator.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/widgets/app_widgets.dart';
+import '../../../data/local/cache_store.dart';
 import '../../../domain/repositories/repositories.dart';
 
 class FundSetupScreen extends StatefulWidget {
@@ -15,7 +16,14 @@ class FundSetupScreen extends StatefulWidget {
 }
 
 class _FundSetupScreenState extends State<FundSetupScreen> {
-  bool create = true;
+  late bool create;
+
+  @override
+  void initState() {
+    super.initState();
+    // نقش انتخاب‌شده در پروفایل: عضو → پیوستن با دعوت؛ مدیر → ایجاد صندوق.
+    create = sl<CacheStore>().intendedRole != 'member';
+  }
 
   @override
   Widget build(BuildContext context) {

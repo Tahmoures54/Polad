@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:polad/core/theme/app_colors.dart';
 import 'package:polad/core/theme/app_theme.dart';
 import 'package:polad/core/utils/formatters.dart';
 import 'package:polad/core/widgets/app_widgets.dart';
@@ -29,5 +30,10 @@ void main() {
     );
     expect(find.text('در انتظار تأیید'), findsOneWidget);
     expect(find.text('صف تأیید خالی است'), findsOneWidget);
+  });
+
+  test('brand colors match indigo and gold', () {
+    expect(AppColors.navy, const Color(0xFF1A237E));
+    expect(AppColors.gold, const Color(0xFFFFD700));
   });
 }
