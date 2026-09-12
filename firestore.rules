@@ -1,0 +1,91 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function uid() {
+      return request.auth.uid;
+    }
+    function memberDoc(fundId) {
+      return get(/databases/$(database)/documents/funds/$(fundId)/members/$(uid()));
+    }
+    function isFundMember(fundId) {
+      return signedIn() && exists(/databases/$(database)/documents/funds/$(fundId)/members/$(uid()));
+    }
+    function isFundAdmin(fundId) {
+      return isFundMember(fundId) && memberDoc(fundId).data.role == 'admin';
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (uid() == userId || request.auth.token.platformAdmin == true);
+      allow create: if signedIn() && uid() == userId
+        && request.resource.data.phone is string
+        && request.resource.data.keys().hasAll(['phone', 'displayName', 'createdAt']);
+      allow update: if signedIn() && uid() == userId
+        && !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['phone', 'createdAt']);
+      allow delete: if false;
+    }
+
+    match /funds/{fundId} {
+      allow read: if isFundMember(fundId);
+      allow create: if signedIn();
+      allow update: if isFundAdmin(fundId)
+        && request.resource.data.serviceFeeRate >= 0.005
+        && request.resource.data.serviceFeeRate <= 0.01
+        && request.resource.data.adminId == resource.data.adminId;
+      allow delete: if false;
+
+      match /members/{memberId} {
+        allow read: if isFundMember(fundId);
+        allow write: if isFundAdmin(fundId) || (signedIn() && uid() == memberId && request.method == 'create');
+      }
+      match /invites/{inviteId} {
+        allow read: if isFundMember(fundId);
+        allow write: if isFundAdmin(fundId);
+      }
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if signedIn() && (
+        resource.data.memberId == uid() || isFundAdmin(resource.data.fundId)
+      );
+      allow create: if signedIn()
+        && request.resource.data.memberId == uid()
+        && request.resource.data.status == 'pending'
+        && request.resource.data.amount is int
+        && request.resource.data.amount > 0;
+      allow update: if false; // only Cloud Functions (Admin SDK)
+      allow delete: if false;
+    }
+
+    match /loans/{loanId} {
+      allow read: if isFundMember(resource.data.fundId);
+      allow create: if signedIn()
+        && request.resource.data.memberId == uid()
+        && request.resource.data.status == 'requested';
+      allow update, delete: if false;
+    }
+
+    match /installments/{installmentId} {
+      allow read: if isFundMember(resource.data.fundId);
+      allow write: if false;
+    }
+
+    match /draws/{drawId} {
+      allow read: if isFundMember(resource.data.fundId);
+      allow write: if false;
+    }
+
+    match /service_invoices/{invoiceId} {
+      allow read: if isFundAdmin(resource.data.fundId);
+      allow write: if false;
+    }
+
+    match /payment_orders/{orderId} {
+      allow read: if signedIn() && resource.data.uid == uid();
+      allow write: if false;
+    }
+  }
+}
