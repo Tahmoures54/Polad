@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/brand/polad_voice.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
@@ -63,7 +64,7 @@ class _LoginViewState extends State<_LoginView> {
         final cubit = context.read<LoginCubit>();
         return AuthScaffold(
           title: 'ورود به پولاد',
-          subtitle: 'فقط با شماره موبایل وارد شوید. کد تأیید پیامک می‌شود.',
+          subtitle: PoladVoice.loginSubtitle,
           child: Form(
             key: _form,
             child: Column(

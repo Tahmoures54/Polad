@@ -65,8 +65,8 @@ class _MemberDashboardView extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 4),
                                 const Text(
-                                  'وضعیت سهم، بدهی و طلب شما در این صندوق',
-                                  style: TextStyle(color: AppColors.muted, fontSize: 13),
+                                  'همین عددها را همهٔ صندوق می‌بینند. از واریز شما چیزی کم نمی‌شود.',
+                                  style: TextStyle(color: AppColors.muted, fontSize: 13, height: 1.6),
                                 ),
                                 const SizedBox(height: 14),
                                 Row(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/brand/polad_voice.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_widgets.dart';
 import '../../blocs/auth/splash_cubit.dart';
@@ -86,7 +87,7 @@ class _SplashViewState extends State<_SplashView> with SingleTickerProviderState
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'صندوق خانوادگی، شفاف و آرام',
+                    PoladVoice.tagline,
                     style: TextStyle(
                       fontFamily: 'Vazirmatn',
                       color: AppColors.gold,

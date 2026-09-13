@@ -183,12 +183,12 @@ void main() {
     test('walks three slides', () {
       final cubit = OnboardingCubit();
       expect(cubit.state.pageCount, 3);
-      expect(cubit.state.current.title, 'ایجاد صندوق');
+      expect(cubit.state.current.title, 'ساده برای همه');
       cubit.next();
-      expect(cubit.state.current.title, 'دعوت اعضا');
+      expect(cubit.state.current.title, 'کار مدیر کم');
       cubit.next();
       expect(cubit.state.isLast, isTrue);
-      expect(cubit.state.current.title, 'مدیریت شفاف');
+      expect(cubit.state.current.title, 'حساب برای همه روشن');
     });
   });
 
@@ -216,11 +216,11 @@ void main() {
     testWidgets('onboarding shows first slide and next', (tester) async {
       final cubit = OnboardingCubit();
       await tester.pumpWidget(wrap(OnboardingScreen(cubit: cubit)));
-      expect(find.text('ایجاد صندوق'), findsOneWidget);
+      expect(find.text('ساده برای همه'), findsOneWidget);
       await tester.tap(find.text('بعدی'));
       await tester.pumpAndSettle();
       expect(cubit.state.index, 1);
-      expect(find.text('دعوت اعضا'), findsWidgets);
+      expect(find.text('کار مدیر کم'), findsWidgets);
       await cubit.close();
     });
 

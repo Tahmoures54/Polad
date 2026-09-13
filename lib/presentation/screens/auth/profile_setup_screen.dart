@@ -66,7 +66,7 @@ class _ProfileSetupView extends StatelessWidget {
               _RoleCard(
                 selected: state.role == UserRole.admin,
                 title: 'مدیر صندوق',
-                subtitle: 'ایجاد صندوق، تأیید پرداخت‌ها، وام و گزارش',
+                subtitle: 'کار شما صف تأیید است، نه دفتر حسابداری',
                 icon: Icons.admin_panel_settings_outlined,
                 onTap: () => cubit.roleChanged(UserRole.admin),
               ),
@@ -74,7 +74,7 @@ class _ProfileSetupView extends StatelessWidget {
               _RoleCard(
                 selected: state.role == UserRole.member,
                 title: 'عضو',
-                subtitle: 'پیوستن با کد دعوت و ثبت پرداخت سهم',
+                subtitle: 'سهم، بدهی و وضعیت پرداخت‌تان مثل مدیر روشن است',
                 icon: Icons.people_outline,
                 onTap: () => cubit.roleChanged(UserRole.member),
               ),

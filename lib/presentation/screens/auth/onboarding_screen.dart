@@ -33,9 +33,9 @@ class _OnboardingViewState extends State<_OnboardingView> {
   final _page = PageController();
 
   IconData _icon(String name) => switch (name) {
-        'invite' => Icons.group_add_outlined,
-        'verify' => Icons.verified_outlined,
-        _ => Icons.shield_outlined,
+        'fast' => Icons.bolt_outlined,
+        'clear' => Icons.visibility_outlined,
+        _ => Icons.spa_outlined,
       };
 
   @override

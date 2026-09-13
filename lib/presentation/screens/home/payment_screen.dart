@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:persian_datetime_picker/persian_datetime_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/brand/polad_voice.dart';
 import '../../../core/di/locator.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
@@ -90,7 +91,7 @@ class _PaymentViewState extends State<_PaymentView> {
             padding: const EdgeInsets.all(20),
             children: [
               const Text(
-                'کد پیگیری کارت‌به‌کارت را وارد کنید. تا تأیید مدیر، وضعیت «در انتظار تأیید» می‌ماند و از موجودی عضو کم نمی‌شود.',
+                PoladVoice.paymentHint,
                 style: TextStyle(color: AppColors.muted, height: 1.7),
               ),
               const SizedBox(height: 16),

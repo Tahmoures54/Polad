@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/brand/polad_voice.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/di/locator.dart';
 import '../../../core/theme/app_colors.dart';
@@ -181,8 +182,9 @@ class LegalScreen extends StatelessWidget {
       body: const SingleChildScrollView(
         padding: EdgeInsets.all(20),
         child: Text(
-          'صندوق خانوادگی پولاد داده‌های مالی را برای مدیریت قرض‌الحسنه خانوادگی ذخیره می‌کند. '
-          'تأیید تراکنش فقط با مدیر است. کارمزد نرم‌افزار مطابق شاپرک از واریز عضو کسر نمی‌شود. '
+          'صندوق خانوادگی پولاد داده‌های مالی را برای قرض‌الحسنه خانوادگی ذخیره می‌کند. '
+          'تأیید تراکنش فقط با مدیر است و همهٔ اعضا وضعیت را می‌بینند. '
+          'کارمزد نرم‌افزار مطابق شاپرک از واریز عضو کسر نمی‌شود. '
           'پیامک بانکی فقط با رضایت مدیر روی اندروید خوانده می‌شود. '
           'اسرار بانکیما روی سرور می‌ماند و به گوشی ارسال نمی‌شود.',
           style: TextStyle(height: 1.8),
@@ -207,6 +209,12 @@ class AboutScreen extends StatelessWidget {
           const Text('صندوق خانوادگی پولاد', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
           const SizedBox(height: 8),
           const Text('نسخه ۱.۰.۰', textAlign: TextAlign.center, style: TextStyle(color: AppColors.muted)),
+          const SizedBox(height: 20),
+          Text(
+            PoladVoice.aboutManifesto,
+            textAlign: TextAlign.center,
+            style: const TextStyle(height: 1.9, fontSize: 15),
+          ),
           const SizedBox(height: 16),
           Text('پشتیبانی: ${AppConfig.supportPhone}', textAlign: TextAlign.center),
         ],
