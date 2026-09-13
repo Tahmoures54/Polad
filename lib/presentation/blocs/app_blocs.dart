@@ -1,0 +1,359 @@
+import 'dart:async';
+
+import 'package:collection/collection.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:equatable/equatable.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:rxdart/rxdart.dart';
+
+import '../../../core/constants/app_constants.dart';
+import '../../../core/di/locator.dart';
+import '../../../data/services/notification_service.dart';
+import '../../../domain/entities/finance.dart';
+import '../../../domain/entities/people.dart';
+import '../../../domain/enums.dart';
+import '../../../domain/repositories/repositories.dart';
+import '../../../domain/services/finance_services.dart';
+
+class SessionState extends Equatable {
+  const SessionState({
+    this.booting = true,
+    this.user,
+    this.online = true,
+  });
+
+  final bool booting;
+  final UserProfile? user;
+  final bool online;
+
+  bool get authenticated => user != null;
+  bool get hasFund => user?.activeFundId != null && (user?.fundIds.isNotEmpty ?? false);
+  bool get needsProfile => user?.needsProfile ?? false;
+
+  SessionState copyWith({bool? booting, UserProfile? user, bool? online, bool clearUser = false}) {
+    return SessionState(
+      booting: booting ?? this.booting,
+      user: clearUser ? null : (user ?? this.user),
+      online: online ?? this.online,
+    );
+  }
+
+  @override
+  List<Object?> get props => [booting, user, online];
+}
+
+class SessionCubit extends Cubit<SessionState> {
+  SessionCubit({AuthRepository? auth})
+      : _auth = auth ?? sl<AuthRepository>(),
+        super(const SessionState()) {
+    _subs.add(_auth.authState().listen((user) {
+      emit(state.copyWith(booting: false, user: user, clearUser: user == null));
+    }));
+    _subs.add(Connectivity().onConnectivityChanged.listen((results) {
+      final online = results.any((r) => r != ConnectivityResult.none);
+      emit(state.copyWith(online: online));
+    }));
+  }
+
+  final AuthRepository _auth;
+  final _subs = <StreamSubscription>[];
+
+  Future<void> signOut() => _auth.signOut();
+
+  /// همگام‌سازی فوری پس از به‌روزرسانی پروفایل (وقتی استریم Auth دوباره شلیک نمی‌کند).
+  void reload() => emit(state.copyWith(booting: false, user: _auth.currentUser));
+
+  @override
+  Future<void> close() async {
+    for (final s in _subs) {
+      await s.cancel();
+    }
+    return super.close();
+  }
+}
+
+class HomeState extends Equatable {
+  const HomeState({
+    this.loading = true,
+    this.fund,
+    this.me,
+    this.members = const [],
+    this.transactions = const [],
+    this.loans = const [],
+    this.installments = const [],
+    this.draws = const [],
+    this.invoices = const [],
+    this.message,
+    this.refreshing = false,
+  });
+
+  final bool loading;
+  final Fund? fund;
+  final FundMember? me;
+  final List<FundMember> members;
+  final List<MoneyTransaction> transactions;
+  final List<Loan> loans;
+  final List<Installment> installments;
+  final List<FundDraw> draws;
+  final List<ServiceInvoice> invoices;
+  final String? message;
+  final bool refreshing;
+
+  bool get isAdmin => me?.isAdmin ?? false;
+  List<MoneyTransaction> get pending =>
+      transactions.where((t) => t.status == TransactionStatus.pending).toList();
+  List<Installment> get myInstallments =>
+      installments.where((i) => i.memberId == me?.userId).toList();
+  List<MoneyTransaction> get myTransactions =>
+      transactions.where((t) => t.memberId == me?.userId).toList();
+  List<Loan> get requestedLoans => loans.where((l) => l.status == LoanStatus.requested).toList();
+  List<Loan> get myLoans => loans.where((l) => l.memberId == me?.userId).toList();
+  List<ServiceInvoice> get unpaidInvoices =>
+      invoices.where((i) => i.status != InvoiceStatus.paid && i.feeAmount > 0).toList();
+  int get activeLoans => loans.where((l) => l.status == LoanStatus.active).length;
+  int get overdueCount => installments.where((i) => i.status == InstallmentStatus.overdue).length;
+
+  HomeState copyWith({
+    bool? loading,
+    Fund? fund,
+    FundMember? me,
+    List<FundMember>? members,
+    List<MoneyTransaction>? transactions,
+    List<Loan>? loans,
+    List<Installment>? installments,
+    List<FundDraw>? draws,
+    List<ServiceInvoice>? invoices,
+    String? message,
+    bool? refreshing,
+    bool clearMessage = false,
+  }) {
+    return HomeState(
+      loading: loading ?? this.loading,
+      fund: fund ?? this.fund,
+      me: me ?? this.me,
+      members: members ?? this.members,
+      transactions: transactions ?? this.transactions,
+      loans: loans ?? this.loans,
+      installments: installments ?? this.installments,
+      draws: draws ?? this.draws,
+      invoices: invoices ?? this.invoices,
+      message: clearMessage ? null : (message ?? this.message),
+      refreshing: refreshing ?? this.refreshing,
+    );
+  }
+
+  @override
+  List<Object?> get props => [loading, fund, me, members, transactions, loans, installments, draws, invoices, message, refreshing];
+}
+
+class HomeCubit extends Cubit<HomeState> {
+  HomeCubit({
+    required this.fundId,
+    required this.userId,
+    FundRepository? funds,
+    TransactionRepository? txs,
+    LoanRepository? loans,
+    DrawRepository? draws,
+    BillingRepository? billing,
+  })  : _funds = funds ?? sl<FundRepository>(),
+        _txs = txs ?? sl<TransactionRepository>(),
+        _loans = loans ?? sl<LoanRepository>(),
+        _draws = draws ?? sl<DrawRepository>(),
+        _billing = billing ?? sl<BillingRepository>(),
+        super(const HomeState()) {
+    _sub = Rx.combineLatest6(
+      _funds.watchFund(fundId),
+      _funds.watchMembers(fundId),
+      _txs.watchForFund(fundId),
+      _loans.watchLoans(fundId),
+      _loans.watchInstallments(fundId),
+      _draws.watch(fundId),
+      (Fund? fund, List<FundMember> members, List<MoneyTransaction> txs, List<Loan> loans, List<Installment> inst, List<FundDraw> draws) {
+        return (
+          fund: fund,
+          members: members,
+          txs: txs,
+          loans: loans,
+          inst: inst,
+          draws: draws,
+        );
+      },
+    ).listen((tuple) {
+      emit(state.copyWith(
+        loading: false,
+        fund: tuple.fund,
+        members: tuple.members,
+        transactions: tuple.txs,
+        loans: tuple.loans,
+        installments: tuple.inst,
+        draws: tuple.draws,
+        me: tuple.members.where((m) => m.userId == userId).firstOrNull,
+      ));
+    });
+    _billSub = _billing.watch(fundId).listen((inv) => emit(state.copyWith(invoices: inv)));
+  }
+
+  final String fundId;
+  final String userId;
+  final FundRepository _funds;
+  final TransactionRepository _txs;
+  final LoanRepository _loans;
+  final DrawRepository _draws;
+  final BillingRepository _billing;
+  StreamSubscription? _sub;
+  StreamSubscription? _billSub;
+
+  Future<void> approveTx(String id) async {
+    final r = await _txs.approve(id);
+    r.when(ok: (_) => emit(state.copyWith(message: 'تراکنش تأیید شد', clearMessage: false)), err: (m) => emit(state.copyWith(message: m)));
+  }
+
+  Future<void> rejectTx(String id, String note) async {
+    final r = await _txs.reject(id, note: note);
+    r.when(ok: (_) => emit(state.copyWith(message: 'تراکنش رد شد')), err: (m) => emit(state.copyWith(message: m)));
+  }
+
+  Future<void> decideLoan(String id, bool approve, {String? note}) async {
+    final r = await _loans.decide(loanId: id, approve: approve, note: note);
+    r.when(ok: (_) => emit(state.copyWith(message: approve ? 'وام تأیید شد' : 'وام رد شد')), err: (m) => emit(state.copyWith(message: m)));
+  }
+
+  Future<void> removeMember(String userId) async {
+    final r = await _funds.removeMember(fundId, userId);
+    r.when(ok: (_) => emit(state.copyWith(message: 'عضو حذف شد')), err: (m) => emit(state.copyWith(message: m)));
+  }
+
+  Future<void> changeRole(String userId, UserRole role) async {
+    final r = await _funds.changeRole(fundId, userId, role);
+    r.when(ok: (_) => emit(state.copyWith(message: 'نقش به‌روز شد')), err: (m) => emit(state.copyWith(message: m)));
+  }
+
+  Future<void> updateFund(Fund fund) async {
+    final r = await _funds.updateFund(fund);
+    r.when(ok: (_) => emit(state.copyWith(message: 'تنظیمات ذخیره شد')), err: (m) => emit(state.copyWith(message: m)));
+  }
+
+  Future<String> inviteLink() async {
+    final fund = state.fund;
+    if (fund == null) return '';
+    return _funds.inviteLink(fund);
+  }
+
+  Future<void> runDraw(String id, {String? winnerId}) async {
+    final r = await sl<DrawRepository>().run(drawId: id, manualWinnerId: winnerId);
+    r.when(ok: (d) => emit(state.copyWith(message: 'برنده: ${d.winnerName}')), err: (m) => emit(state.copyWith(message: m)));
+  }
+
+  Future<void> createDraw({
+    required String title,
+    required int prize,
+    DateTime? start,
+    DateTime? end,
+    DrawSelectionMode mode = DrawSelectionMode.random,
+  }) async {
+    final now = DateTime.now();
+    final r = await sl<DrawRepository>().create(
+      title: title,
+      start: start ?? now,
+      end: end ?? now.add(const Duration(days: 30)),
+      prizeAmount: prize,
+      mode: mode,
+    );
+    r.when(ok: (_) => emit(state.copyWith(message: 'دوره قرعه‌کشی ساخته شد')), err: (m) => emit(state.copyWith(message: m)));
+  }
+
+  /// یادآوری دستی قسط برای عضو (اعلان محلی؛ تأیید خودکار نیست).
+  Future<void> remindInstallment(Installment inst) async {
+    final member = state.members.where((m) => m.userId == inst.memberId).firstOrNull;
+    final name = member?.displayName ?? 'عضو';
+    final body =
+        '$name عزیز، قسط ${inst.sequence} به مبلغ ${inst.amount} تومان تا سررسید نزدیک است.';
+    final r = await sl<NotificationService>().showLocal(
+      title: 'یادآوری قسط صندوق پولاد',
+      body: body,
+    );
+    r.fold(
+      (f) => emit(state.copyWith(message: f.message)),
+      (_) => emit(state.copyWith(message: 'یادآوری برای $name ارسال شد')),
+    );
+  }
+
+  Future<void> paySoftwareFee(ServiceInvoice invoice) async {
+    if (state.fund?.isCharity == true || invoice.feeAmount == 0) {
+      emit(state.copyWith(message: 'صندوق خیریه کارمزد صفر دارد و پرداختی لازم نیست'));
+      return;
+    }
+    final pay = await sl<PaymentGateway>().startSoftwareFeePayment(
+      invoiceId: invoice.id,
+      amountToman: invoice.feeAmount,
+    );
+    await pay.when(
+      ok: (_) async {
+        final r = await _billing.markPaid(invoice.id);
+        r.when(
+          ok: (_) => emit(state.copyWith(message: 'هزینه خدمات نرم‌افزاری پرداخت شد')),
+          err: (m) => emit(state.copyWith(message: m)),
+        );
+      },
+      err: (m) async => emit(state.copyWith(message: m)),
+    );
+  }
+
+  Future<void> remindSoftwareFee() async {
+    final snap = const RevenueService().forMonth(
+      fund: state.fund,
+      transactions: state.transactions,
+      invoices: state.invoices,
+    );
+    if (snap.charityZeroFee) {
+      emit(state.copyWith(message: 'صندوق خیریه کارمزد صفر است'));
+      return;
+    }
+    if (!snap.needsPayment) {
+      emit(state.copyWith(message: 'صورتحساب معوقی نیست'));
+      return;
+    }
+    final r = await sl<NotificationService>().showLocal(
+      title: 'یادآوری هزینه خدمات نرم‌افزاری',
+      body: 'جمع این ماه ${snap.feeTotal} تومان است و طبق شاپرک از عضو کسر نشده. لطفاً تسویه کنید.',
+    );
+    r.fold(
+      (f) => emit(state.copyWith(message: f.message)),
+      (_) => emit(state.copyWith(message: 'یادآوری پرداخت کارمزد ارسال شد')),
+    );
+  }
+
+  Future<void> saveServiceFee({required double rate, required bool charity}) async {
+    final fund = state.fund;
+    if (fund == null) return;
+    if (!charity &&
+        (rate < AppConstants.minServiceFeeRate || rate > AppConstants.maxServiceFeeRate)) {
+      emit(state.copyWith(message: 'نرخ باید بین ۰٫۵٪ تا ۱٪ باشد'));
+      return;
+    }
+    await updateFund(fund.copyWith(serviceFeeRate: rate, isCharity: charity));
+  }
+
+  Future<void> upgradePremium() async {
+    final fund = state.fund;
+    if (fund == null) return;
+    final r = await _funds.updateFund(fund.copyWith(tier: SubscriptionTier.premium));
+    r.when(ok: (_) => emit(state.copyWith(message: 'پلن پریمیوم فعال شد')), err: (m) => emit(state.copyWith(message: m)));
+  }
+
+  void clearMessage() => emit(state.copyWith(clearMessage: true));
+
+  /// تازه‌سازی دستی برای Pull-to-refresh؛ داده‌ها از استریم زنده می‌آیند.
+  Future<void> refresh() async {
+    emit(state.copyWith(refreshing: true));
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    if (!isClosed) emit(state.copyWith(refreshing: false));
+  }
+
+  @override
+  Future<void> close() async {
+    await _sub?.cancel();
+    await _billSub?.cancel();
+    return super.close();
+  }
+}
